@@ -1,13 +1,24 @@
+# Python cache
 __pycache__/
 *.py[cod]
 .pytest_cache/
-artifacts/
 *.egg-info/
-ros_ws/build/
-ros_ws/devel/
+
+# Generated datasets, checkpoints, logs, and videos
+artifacts/
+
+# ROS workspace is outside the published MuJoCo project
+ros_ws/
+
+# Local development metadata
 .serena/
 .codex/
 .agents/
 .vscode/
 .matplotlib-doc-cache/
+
+# Local manuscript working copy
+polimi_updated.docx
+
+# Accidentally generated CLI-option files
 --*
