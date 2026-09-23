@@ -1,0 +1,88 @@
+extends: ur5e_dynamic_cage_inference.yaml
+
+# Ten deterministic validation slots cover spatial position, signed curvature,
+# curvature magnitude/trend, and target speed without approaching the Base axis.
+system:
+  seed: 20261020
+
+trajectory:
+  plane_origin_bounds: [[0.48, 0.64], [-0.22, 0.22], [0.28, 0.58]]
+  turn_sign_mode: random_v1
+  validation_profiles:
+    - name: left_low_near_low_curvature_up
+      origin_bounds: [[0.48, 0.53], [0.18, 0.22], [0.28, 0.34]]
+      speed_bounds_mps: [0.11, 0.13]
+      curvature_low_bounds_m_inv: [1.4, 1.8]
+      curvature_high_bounds_m_inv: [2.0, 2.4]
+      curvature_trend: up
+      turn_sign: -1.0
+    - name: center_low_medium_curvature_down
+      origin_bounds: [[0.53, 0.58], [-0.03, 0.03], [0.28, 0.34]]
+      speed_bounds_mps: [0.13, 0.15]
+      curvature_low_bounds_m_inv: [2.1, 2.5]
+      curvature_high_bounds_m_inv: [2.8, 3.2]
+      curvature_trend: down
+      turn_sign: 1.0
+    - name: right_low_high_curvature_up
+      origin_bounds: [[0.48, 0.53], [-0.22, -0.18], [0.29, 0.35]]
+      speed_bounds_mps: [0.15, 0.18]
+      curvature_low_bounds_m_inv: [3.0, 3.4]
+      curvature_high_bounds_m_inv: [3.8, 4.2]
+      curvature_trend: up
+      turn_sign: -1.0
+    - name: left_mid_high_curvature_down
+      origin_bounds: [[0.52, 0.57], [0.17, 0.22], [0.38, 0.44]]
+      speed_bounds_mps: [0.14, 0.17]
+      curvature_low_bounds_m_inv: [3.0, 3.4]
+      curvature_high_bounds_m_inv: [3.8, 4.2]
+      curvature_trend: down
+      turn_sign: 1.0
+    - name: center_mid_low_curvature_up
+      origin_bounds: [[0.57, 0.62], [-0.04, 0.04], [0.38, 0.44]]
+      speed_bounds_mps: [0.11, 0.14]
+      curvature_low_bounds_m_inv: [1.4, 1.8]
+      curvature_high_bounds_m_inv: [2.0, 2.4]
+      curvature_trend: up
+      turn_sign: -1.0
+    - name: right_mid_medium_curvature_down
+      origin_bounds: [[0.52, 0.57], [-0.22, -0.17], [0.38, 0.44]]
+      speed_bounds_mps: [0.13, 0.16]
+      curvature_low_bounds_m_inv: [2.1, 2.5]
+      curvature_high_bounds_m_inv: [2.8, 3.2]
+      curvature_trend: down
+      turn_sign: 1.0
+    - name: left_high_medium_curvature_up
+      origin_bounds: [[0.56, 0.61], [0.15, 0.20], [0.47, 0.53]]
+      speed_bounds_mps: [0.14, 0.17]
+      curvature_low_bounds_m_inv: [2.1, 2.5]
+      curvature_high_bounds_m_inv: [2.8, 3.2]
+      curvature_trend: up
+      turn_sign: -1.0
+    - name: center_high_high_curvature_down
+      origin_bounds: [[0.58, 0.63], [-0.04, 0.04], [0.47, 0.53]]
+      speed_bounds_mps: [0.15, 0.18]
+      curvature_low_bounds_m_inv: [3.0, 3.4]
+      curvature_high_bounds_m_inv: [3.8, 4.2]
+      curvature_trend: down
+      turn_sign: 1.0
+    - name: right_high_low_curvature_up
+      origin_bounds: [[0.56, 0.61], [-0.20, -0.15], [0.47, 0.53]]
+      speed_bounds_mps: [0.11, 0.14]
+      curvature_low_bounds_m_inv: [1.4, 1.8]
+      curvature_high_bounds_m_inv: [2.0, 2.4]
+      curvature_trend: up
+      turn_sign: -1.0
+    - name: elevated_side_medium_curvature_down
+      origin_bounds: [[0.54, 0.59], [0.13, 0.18], [0.53, 0.58]]
+      speed_bounds_mps: [0.13, 0.16]
+      curvature_low_bounds_m_inv: [2.1, 2.5]
+      curvature_high_bounds_m_inv: [2.8, 3.2]
+      curvature_trend: down
+      turn_sign: 1.0
+
+dynamic_cage_inference:
+  minimum_base_distance_m: 0.46
+  minimum_base_xy_distance_m: 0.40
+  maximum_base_distance_m: 0.88
+  base_height_bounds_m: [0.24, 0.68]
+  maximum_trajectory_attempts_per_episode: 800

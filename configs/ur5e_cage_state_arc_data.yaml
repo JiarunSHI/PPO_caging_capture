@@ -1,0 +1,43 @@
+extends: ur5e_vision_cage_data.yaml
+
+# Geometry-only supervision. RGB-D rendering and the former [5,4] visual
+# history dataset are deliberately outside this contract.
+system:
+  seed: 20260911
+
+labeling:
+  dataset_contract: current_base_position_velocity_acceleration_plane_normal_signed_curvature_to_best_normalized_minor_arc_v1
+  # Six points at 10 Hz provide 0.5 s of causal history before the first
+  # local-plane label. These startup frames are audited but never supervised.
+  minimum_local_plane_history_frames: 6
+
+vision:
+  enabled: false
+  require_rendered_cage_training_inputs: false
+
+# A narrower, thinner U-shaped gripper than the previous visualization proxy.
+# Finger faces remain perpendicular to Cage y; finger_thickness_m is their y
+# thickness. The open mouth remains a real escape boundary, never a Cap.
+gripper:
+  internal_region_endpoint_frame:
+    rear_x: 0.012
+    mouth_x: 0.050
+    inner_y_min: -0.023
+    inner_y_max: 0.023
+    inner_z_min: -0.020
+    inner_z_max: 0.020
+  finger_thickness_m: 0.005
+
+est:
+  # Every candidate at one timestamp still receives the same three tapes.
+  # Seventy percent of force directions point into the current motion-arc
+  # sector; the remaining thirty percent retain global exploration.
+  disturbance_direction_sampling_mode: motion_arc_mixture_v1
+  arc_direction_probability: 0.70
+  arc_direction_out_of_plane_std: 0.15
+  arc_direction_force_magnitude_fraction: [0.20, 1.00]
+  # Stop branches after they leave the task-relevant neighborhood expressed
+  # in the candidate endpoint frame instead of filling the metre-scale world.
+  local_expansion_bounds_endpoint_frame:
+    min_m: [-0.020, -0.090, -0.070]
+    max_m: [0.220, 0.090, 0.070]

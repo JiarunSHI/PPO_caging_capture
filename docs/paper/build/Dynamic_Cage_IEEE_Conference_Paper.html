@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dynamic Cage Reconstruction and Curriculum Reinforcement Learning for Continuous Tracking of Moving Targets</title>
+<style>
+@page { size: Letter; margin: 19mm 15.9mm 25.4mm; }
+body {
+  max-width: 7.25in; margin: 0 auto; color: #000;
+  font-family: "Times New Roman", "Noto Serif CJK SC", "SimSun", serif;
+  font-size: 10pt; line-height: 1.12; text-align: justify;
+}
+h1 { font-size: 24pt; font-weight: 400; text-align: center; margin: .35in 0 .08in; line-height: 1.08; }
+.author-placeholder { height: .42in; }
+.ieee-columns { column-count: 2; column-gap: .25in; column-fill: auto; }
+h2 { font-size: 10pt; text-transform: uppercase; text-align: center; margin: 1.2em 0 .45em; break-after: avoid; }
+h3 { font-size: 10pt; font-style: italic; margin: .85em 0 .25em; break-after: avoid; }
+h4 { font-size: 10pt; font-style: italic; margin: .65em 0 .2em; break-after: avoid; }
+p { margin: .2em 0; text-indent: 1em; }
+body > p:nth-of-type(-n+2) { text-indent: 0; }
+p:has(> img) { column-span: all; break-inside: avoid; text-indent: 0; }
+img { display: block; max-width: 7.1in; max-height: 7.4in; margin: .8em auto .2em; object-fit: contain; }
+img[src*="system_pipeline_en"], img[src*="ppo_architecture_en"] { max-width: 84%; }
+img[src*="est_expansion_flow_en"], img[src*="inference_state_machine"] { max-width: 90%; }
+table { border-collapse: collapse; width: 100%; font-size: 8pt; margin: .55em 0; break-inside: avoid; }
+th, td { border: 1px solid #7f8c99; padding: .38em .5em; text-align: center; }
+th { background: #fff; font-weight: bold; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: .92em; }
+blockquote { border-left: 4px solid #7c93aa; margin-left: 0; padding-left: 1em; color: #425466; }
+ol, ul { padding-left: 1.6em; }
+@media screen and (max-width: 850px) {
+  body { padding: 0 18px; }
+  .ieee-columns { column-count: 1; }
+  img { max-width: 100%; }
+}
+</style>
+<script>
+window.MathJax = {tex: {tags: 'ams', inlineMath: [['$', '$']], displayMath: [['$$','$$']]}};
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body><h1>Dynamic Cage Reconstruction and Curriculum Reinforcement Learning for Continuous Tracking of Moving Targets</h1>
+<div class="author-placeholder" aria-label="Author information reserved"></div>
+
+<p><strong>Abstract—</strong> Tracking only the measured position of a moving object causes a robot end effector to lag behind the object and can eventually drive an eye-in-hand camera out of view. This paper presents a causal closed-loop framework that combines visual motion estimation, dynamic Cage-pose reconstruction, and staged manipulator control. Five red-green-blue-depth observations initialize a nine-dimensional position–velocity–acceleration state. A constant-acceleration Kalman filter, innovation gating, a causal local spline, and local principal-component analysis then estimate the target motion and its local motion plane. Candidate Cage poses are placed on a speed-dependent minor arc defined by the current tangent and the extrapolated local curve. Offline, an expansive-space tree repeatedly propagates target dynamics in MuJoCo and scores each fixed candidate by the fraction of tree nodes that lie inside the true U-shaped gripper region. The resulting statistics are compressed into a normalized arc prior for real-time reconstruction. During execution, a bounded Jacobian controller handles large pose errors, after which a proximal policy optimization policy produces six joint velocities at 100 Hz for local tracking. On a UR5e simulation, the best final-curriculum checkpoint achieved 92% rollout success, 2.95 mm mean terminal position error, and 3.94° mean terminal orientation error. The proposed modular design separates causal perception, dynamics-based Cage evaluation, and learned local control, providing an auditable route toward moving-target following and capture.</p>
+<p><strong>Index Terms—</strong> Dynamic caging, eye-in-hand vision, moving-target tracking, reinforcement learning, robotic manipulation.</p>
+<div class="ieee-columns"><h2>I. INTRODUCTION</h2>
+<p>Continuous tracking of moving objects is a prerequisite for dynamic grasping, conveyor manipulation, noncooperative target capture, and human–robot interaction. In contrast to static reaching, the target continues to move between two visual observations. If the latest measured center is directly used as the end-effector reference, image-processing latency, discrete control, and robot inertia produce a persistent following error. In an eye-in-hand configuration, the same error can push the target outside the camera field of view, simultaneously breaking state estimation and control. Previous moving-target visual-servo systems compensate for this effect through velocity estimation or disturbance observers [1]–[3]. However, they do not directly answer two task-specific questions: where the end effector should be placed relative to the motion trend, and whether that relative pose remains favorable under dynamic disturbances.</p>
+<p>This work addresses a pre-grasp tracking state rather than a closed grasp. The gripper maintains a finite offset and orientation relative to the moving target, keeping the target near an open, capture-favorable region. We call the corresponding desired end-effector frame a <em>Cage pose</em>. The Cage is related to the physical gripper but is not assumed to be a sealed geometric enclosure. Containment is evaluated only with the true U-shaped inner geometry of the gripper. In particular, the obsolete model obtained by sweeping the fingers through ±30° to form an artificial three-dimensional Cap volume is not used.</p>
+<p>Differential Jacobian control provides fast and interpretable pose correction without policy training, but relies on local linearization and explicit handling of singularity, joint-limit, and rate constraints. Reinforcement learning can capture joint coupling, acceleration effects, and the interaction between position and orientation corrections. JAiLeR demonstrated that task-space goals can be mapped directly to joint-space control through deep reinforcement learning [4], while proximal policy optimization (PPO) provides a stable clipped update for continuous policies [5]. Asking one PPO policy to discover both long-range reaching and precise local following nevertheless creates an unnecessarily difficult exploration problem. The present system therefore assigns large-error approach to a bounded Jacobian controller and reserves PPO for high-rate local correction.</p>
+<p>The main contributions are as follows.</p>
+<ol>
+<li>A fully causal online reconstruction method estimates target position, velocity, acceleration, curvature, and the local motion plane using only current and past eye-in-hand depth observations.</li>
+<li>A candidate-generation and dynamics-evaluation method places fixed Cage poses on a motion-consistent minor arc and uses expansive-space-tree (EST) propagation only for target-state expansion and candidate scoring under the true gripper geometry.</li>
+<li>A hybrid Jacobian–PPO controller separates deterministic coarse approach from learned local tracking. The PPO policy observes a six-dimensional Cage-to-tool error and the twelve-dimensional robot joint state.</li>
+<li>A reproducible pipeline connects trajectory synthesis, dynamics-based prior extraction, causal visual reconstruction, curriculum policy training, and closed-loop MuJoCo visualization.</li>
+</ol>
+<p><img alt="Overall system pipeline" src="figures/system_pipeline_en.png" /></p>
+<p><strong>Fig. 1.</strong> Overall causal pipeline. Vision updates at 10 Hz and joint control runs at 100 Hz. Five valid visual frames bootstrap the motion state; from frame six onward, the Cage is reconstructed online and the controller switches from bounded Jacobian approach to latched PPO tracking.</p>
+<h2>II. RELATED WORK</h2>
+<h3>A. Moving-Target Visual Servoing</h3>
+<p>Eye-in-hand visual servoing closes the robot loop through image features or reconstructed three-dimensional pose error. For a moving target, target velocity acts as an external disturbance in feature dynamics; ignoring it results in a systematic lag. Ito and Shibata studied delay-free tracking of a moving target with a hand-eye robot [1]. Cervera <em>et al.</em> combined depth and motion-disturbance observation for robotic visual servoing [2]. Dong and Zhu coupled adaptive extended Kalman estimation with eye-in-hand capture of a noncooperative target [3]. These studies motivate separating measurement filtering, motion estimation, and control-reference generation. The present work further maps the estimated motion into a directional Cage pose rather than using the object center as the tool-center-point (TCP) reference.</p>
+<h3>B. Caging and Dynamics-Based Robustness</h3>
+<p>Caging restricts object escape through geometry without requiring force closure. <em>Caging in Motion</em> extended quasi-static caging to contact-rich dynamic manipulation and analyzed robustness through forward dynamics and energy margins [6]. The present formulation does not reuse its energy-margin or capture-set definition. Instead, each candidate gripper pose is held fixed while the current target state is expanded by EST. Nodes are classified by the true internal region of the gripper, and the complete-tree occupancy ratio is used as the candidate score.</p>
+<p>EST originates from sampling-based planning in expansive spaces [7]. It favors parent nodes from sparsely occupied regions and therefore reduces concentration in a small portion of state space. Here, EST is not a robot path planner. It is an identical-condition dynamics stress test applied independently to Cage candidates.</p>
+<h3>C. Learned Joint-Space Control</h3>
+<p>Inverse kinematics and Jacobian methods depend on an explicit kinematic model and require additional treatment of singularities, joint limits, and redundant solutions. Kumar <em>et al.</em> used deep reinforcement learning to map task-space errors to joint-space control and demonstrated the feasibility of learned reaching [4]. PPO limits each policy update through a clipped probability ratio [5], and generalized advantage estimation (GAE) balances bias and variance in policy-gradient estimation [8]. Building on these ideas, our controller uses a finer curriculum, independent Actor and Critic optimizers, error-dependent action scaling, and an online Jacobian–PPO mode switch.</p>
+<h2>III. PROBLEM FORMULATION AND SYSTEM ARCHITECTURE</h2>
+<h3>A. Coordinate Frames and Objective</h3>
+<p>All frames are right-handed. Let ({B}), ({T}), ({C}), and ({K}) denote the robot base, TCP, Cage, and camera frames, respectively. The physical gripper and eye-in-hand camera are rigidly attached to the sixth UR5e link; hence ({}^{T}\mathbf{T}<em>{C}) and ({}^{T}\mathbf{T}</em>{K}) are fixed extrinsic transformations. A target-center measurement is transformed from the camera frame to the base frame by</p>
+<p>$$
+{}^{B}\mathbf{p}<em>{o,k}={}^{B}\mathbf{T}</em>{K,k}
+\begin{bmatrix}{}^{K}\mathbf{p}_{o,k}\1\end{bmatrix}.
+\tag{1}
+$$</p>
+<p>The target is represented by a point-mass proxy with mass, collision radius, and contact parameters. Online reconstruction uses only its three-dimensional center; target orientation is not estimated. At every accepted visual update, the perception module generates a desired Cage pose ({}^{B}\mathbf{T}_{C,k}^{*}). The robot must track this pose while preserving target visibility and satisfying joint and collision constraints.</p>
+<h3>B. Multi-Rate Closed Loop</h3>
+<p>The eye-in-hand camera provides an observation every 100 ms. MuJoCo uses a 2-ms physics step, and the manipulator controller runs at 100 Hz, i.e., five physics steps per control command. Target motion is independent of policy inference: in simulation, the target follows a generated trajectory that is hidden from the online estimator, while the controller can access only camera measurements, robot forward kinematics, and causal filter history.</p>
+<p>The state machine has three modes. During the first five valid frames, the arm holds an observation pose and collects raw measurements. From the sixth frame onward, the system reconstructs the Cage and uses the bounded Jacobian controller for approach. Once the TCP-to-Cage position error is below 15 mm and the shortest-rotation error is below 45°, PPO is enabled and latched for local tracking. One missed detection invokes Kalman prediction only; three consecutive misses terminate the current task as a loss of visual tracking.</p>
+<p><strong>TABLE I</strong></p>
+<p><strong>CORE SYSTEM RATES AND DIMENSIONS</strong></p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th style="text-align: right;">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Visual update interval</td>
+<td style="text-align: right;">100 ms (10 Hz)</td>
+</tr>
+<tr>
+<td>Joint-control interval</td>
+<td style="text-align: right;">10 ms (100 Hz)</td>
+</tr>
+<tr>
+<td>MuJoCo integration step</td>
+<td style="text-align: right;">2 ms</td>
+</tr>
+<tr>
+<td>Kalman state dimension</td>
+<td style="text-align: right;">9</td>
+</tr>
+<tr>
+<td>PPO observation/action dimensions</td>
+<td style="text-align: right;">18 / 6</td>
+</tr>
+<tr>
+<td>Jacobian-to-PPO switch</td>
+<td style="text-align: right;">15 mm and 45°</td>
+</tr>
+</tbody>
+</table>
+<h2>IV. METHOD</h2>
+<h3>A. Causal Nine-Dimensional Motion Estimation</h3>
+<h4>1) Five-Frame Bootstrap</h4>
+<p>The target state contains position, velocity, and acceleration,</p>
+<p>$$
+\mathbf{x}_k=
+\begin{bmatrix}
+\mathbf{p}_k^{\mathsf T}&amp;\mathbf{v}_k^{\mathsf T}&amp;\mathbf{a}_k^{\mathsf T}
+\end{bmatrix}^{\mathsf T}\in\mathbb{R}^{9}.
+\tag{2}
+$$</p>
+<p>The filter is not initialized from a single measurement with arbitrarily zero velocity and acceleration. Instead, five valid target centers are fit with a local quadratic motion model to estimate (\mathbf{p}_5), (\mathbf{v}_5), and (\mathbf{a}_5). The fit residual initializes (\mathbf{P}_5): a larger residual yields larger uncertainty in the corresponding position, velocity, and acceleration components. Standard-deviation floors of 3 mm, 0.03 m/s, and 0.20 m/s² prevent overconfident initialization. Consequently, the first innovation test at frame six uses a motion state supported by actual visual history.</p>
+<h4>2) Constant-Acceleration Kalman Filter</h4>
+<p>For sampling interval (\Delta t), the constant-acceleration Kalman prediction [11] is</p>
+<p>$$
+\mathbf{x}<em>{k|k-1}=\mathbf{F}(\Delta t)\mathbf{x}</em>{k-1|k-1},\qquad
+\mathbf{P}<em>{k|k-1}=\mathbf{F}\mathbf{P}</em>{k-1|k-1}\mathbf{F}^{\mathsf T}+\mathbf{Q}(\Delta t),
+\tag{3}
+$$</p>
+<p>with</p>
+<p>$$
+\mathbf{F}(\Delta t)=
+\begin{bmatrix}
+\mathbf{I}&amp;\Delta t\mathbf{I}&amp;\frac{1}{2}\Delta t^2\mathbf{I}\
+\mathbf{0}&amp;\mathbf{I}&amp;\Delta t\mathbf{I}\
+\mathbf{0}&amp;\mathbf{0}&amp;\mathbf{I}
+\end{bmatrix}.
+\tag{4}
+$$</p>
+<p>The process covariance follows an integrated white-jerk model, allowing acceleration to change smoothly rather than remain constant indefinitely. The depth detector directly measures position only,</p>
+<p>$$
+\mathbf{z}_k=\mathbf{H}\mathbf{x}_k+\boldsymbol{\nu}_k,\qquad
+\mathbf{H}=\begin{bmatrix}\mathbf{I}&amp;\mathbf{0}&amp;\mathbf{0}\end{bmatrix},
+\tag{5}
+$$</p>
+<p>where (\boldsymbol{\nu}<em>k\sim\mathcal{N}(\mathbf{0},\mathbf{R})). Let (\mathbf{y}_k=\mathbf{z}_k-\mathbf{H}\mathbf{x}</em>{k|k-1}) and (\mathbf{S}_k) be the innovation and its covariance. A measurement is accepted only if its squared Mahalanobis distance</p>
+<p>$$
+d_k^2=\mathbf{y}_k^{\mathsf T}\mathbf{S}_k^{-1}\mathbf{y}_k
+\tag{6}
+$$</p>
+<p>is below the innovation-gate threshold. A missed or rejected observation does not erase the accumulated state; the filter retains the prediction with increased uncertainty.</p>
+<h3>B. Causal Curve and Local Motion Plane</h3>
+<p>A shared three-dimensional cubic spline is fitted over a finite causal window by minimizing a recency-weighted data term and a curvature regularizer,</p>
+<p>$$
+\min_{\mathbf{c}}
+\sum_i w_i|\mathbf{s}(t_i;\mathbf{c})-\hat{\mathbf{p}}_i|_2^2
++\lambda\int|\mathbf{s}''(t)|_2^2\,dt.
+\tag{7}
+$$</p>
+<p>Recent measurements receive larger weights. The first and second derivatives provide local velocity and acceleration, while curvature is</p>
+<p>$$
+\kappa(t)=\frac{|\dot{\mathbf{s}}(t)\times\ddot{\mathbf{s}}(t)|_2}
+{|\dot{\mathbf{s}}(t)|_2^3}.
+\tag{8}
+$$</p>
+<p>The spline uses only samples at or before the current time. Its forward continuation is a prediction of the current local model, not access to the generated trajectory's future ground truth.</p>
+<p>Principal-component analysis [12] is applied to spline samples in the causal window. When the ratio between the second and first eigenvalues indicates sufficient two-dimensional spread, the eigenvector associated with the smallest eigenvalue defines the plane normal. For sufficiently curved motion, (\mathbf{t}\times\mathbf{a}) also supplies a differential normal. The sign is stabilized against the previous normal and a base-frame reference, and the maximum frame-to-frame normal rotation is limited to avoid eigenvector sign flips.</p>
+<h3>C. Cage Candidates and Offline EST Evaluation</h3>
+<h4>1) Speed-Dependent Radius</h4>
+<p>The candidate-circle radius grows linearly with the estimated target speed and is limited to 0.10–0.18 m,</p>
+<p>$$
+r_k=\operatorname{LPF}!\left[
+\operatorname{clip}!\left(
+r_{\min}+\frac{v_k-v_{\min}}{v_{\max}-v_{\min}}
+(r_{\max}-r_{\min}),r_{\min},r_{\max}
+\right)\right].
+\tag{9}
+$$</p>
+<p>A low-pass filter and a radius-rate limit prevent visual velocity noise from producing discontinuous Cage poses. The larger radius at higher speed reserves more response distance and camera visibility.</p>
+<h4>2) Minor Arc and Candidate Orientation</h4>
+<p>Let the current target position be the circle center, and let (\mathbf{u}_k) and (\mathbf{v}_k) span the local motion plane. The arc starts where the current tangent intersects the radius circle and ends at the first intersection between the forward continuation of the causal spline and the same circle. A normalized arc coordinate (\alpha\in[0,1]) reconstructs the candidate position as</p>
+<p>$$
+\theta(\alpha)=\theta_s+\alpha(\theta_e-\theta_s),\qquad
+\mathbf{p}_{C}(\alpha)=\mathbf{p}_k+r_k
+[\cos\theta(\alpha)\mathbf{u}_k+\sin\theta(\alpha)\mathbf{v}_k].
+\tag{10}
+$$</p>
+<p>The candidate Cage (x)-axis always points from the candidate toward the object center. Its (z)-axis is the stabilized positive motion-plane normal, and the (y)-axis completes a right-handed frame. Thus the Cage (x)-(y) plane is parallel to the local target-motion plane, while the planes of the two gripper fingers are normal to the Cage (y)-axis.</p>
+<h4>3) EST Dynamics Expansion</h4>
+<p>For each candidate, the pose remains fixed and the EST root contains the current target position, linear velocity, identity orientation, and zero angular velocity. A parent is preferentially drawn from a low-density cell, then a random force, random torque, and random duration are applied. MuJoCo performs physical forward integration with a 5-ms step. Seventy percent of force directions are biased toward the current motion-arc sector, while 30% retain global three-dimensional exploration. Each tree contains at most 640 nodes over 0.8 s. Nonfinite states, boundary violations, and penetration exceeding 6 mm are marked illegal and are not expanded further.</p>
+<p><img alt="EST dynamics evaluation" src="figures/est_expansion_flow_en.png" /></p>
+<p><strong>Fig. 2.</strong> Dynamics evaluation of one fixed candidate. EST expands only target states; candidate pose and gripper geometry remain unchanged during a tree. All candidates share the same disturbance tape.</p>
+<p>For candidate (j) and repeat (m), let (N_{j,m}^{\mathrm{in}}) be the number of nodes inside the physical U-shaped gripper region and (N_{j,m}) the total number of tree nodes. The occupancy and three-repeat statistics are</p>
+<p>$$
+\rho_{j,m}=\frac{N_{j,m}^{\mathrm{in}}}{N_{j,m}},\qquad
+\bar{\rho}<em>j=\frac{1}{3}\sum</em>{m=1}^{3}\rho_{j,m},\qquad
+\sigma_j=\operatorname{Std}(\rho_{j,1},\rho_{j,2},\rho_{j,3}).
+\tag{11}
+$$</p>
+<p>The primary label is the candidate with maximum (\bar{\rho}_j); continuity is considered only for a near tie. The internal region is bounded by the true back wall, opening, inter-finger width, and height. Escape through the opening is explicitly recorded, and no artificial Cap surface is introduced.</p>
+<h4>4) From EST Labels to an Online Prior</h4>
+<p>The offline state–arc data contain 55,121 valid labels from 2,919 trajectories. The winning (\alpha) has mean 0.402 and median 0.375. An audit of all candidates for 10,000 labels shows that the largest mean occupancy is obtained by fixed (\alpha=0.5). Meanwhile, the absolute Pearson correlations between winning (\alpha) and speed, curvature, acceleration, or radius are all below 0.02. Under the present geometry and disturbance model, these state variables therefore provide little evidence for a reliable regressor. The online system uses (\alpha=0.4375), the midpoint between the empirical median and the occupancy-maximizing fixed candidate.</p>
+<p><img alt="State-to-arc prior statistics" src="figures/state_arc_prior_relationships.png" /></p>
+<p><strong>Fig. 3.</strong> Offline EST statistics. Winners cluster around the middle of the minor arc, while their dependence on speed and curvature is weak. The fixed prior is therefore better supported by the current data than a learned arc regressor.</p>
+<h3>D. Bounded Jacobian Approach and PPO Tracking</h3>
+<h4>1) Differential Jacobian Controller</h4>
+<p>The desired Cage pose and current TCP pose define (\mathbf{e}=[\mathbf{e}_p,\mathbf{e}_R]), where (\mathbf{e}_R) is the shortest rotation vector. Desired task-space velocity combines feedforward motion and proportional feedback,</p>
+<p>$$
+\boldsymbol{\xi}^{*}=\boldsymbol{\xi}_{\mathrm{ref}}+
+\begin{bmatrix}k_p\mathbf{e}_p\k_R\mathbf{e}_R\end{bmatrix}.
+\tag{12}
+$$</p>
+<p>Joint velocity is obtained from a bounded damped least-squares problem [10],</p>
+<p>$$
+\dot{\mathbf{q}}^{<em>}=\arg\min_{\dot{\mathbf{q}}}
+|\mathbf{W}(\mathbf{J}\dot{\mathbf{q}}-\boldsymbol{\xi}^{</em>})|<em>2^2
++\lambda_J|\dot{\mathbf{q}}|_2^2,
+\quad
+\dot{\mathbf{q}}</em>{\min}\leq\dot{\mathbf{q}}\leq\dot{\mathbf{q}}_{\max}.
+\tag{13}
+$$</p>
+<p>The bounds jointly enforce joint speed, acceleration, and remaining position margin. This controller supplies a predictable descent direction when the robot starts far from the reconstructed Cage.</p>
+<h4>2) PPO Observation, Action, and Probability Density</h4>
+<p>The PPO observation is</p>
+<p>$$
+\mathbf{s}<em>t=
+\begin{bmatrix}
+{}^{B}\mathbf{e}</em>{p,t}^{\mathsf T}&amp;
+\mathbf{e}_{R,t}^{\mathsf T}&amp;
+\mathbf{q}_t^{\mathsf T}&amp;
+\dot{\mathbf{q}}_t^{\mathsf T}
+\end{bmatrix}^{\mathsf T}\in\mathbb{R}^{18}.
+\tag{14}
+$$</p>
+<p>Actor and Critic are separate two-layer, 128-unit hyperbolic-tangent multilayer perceptrons with independent parameters and Adam optimizers. The Actor outputs a six-dimensional Gaussian mean, while six global (\log\sigma) parameters are trained with the policy. A latent action is sampled and squashed,</p>
+<p>$$
+\mathbf{u}<em>t\sim\mathcal{N}(\boldsymbol{\mu}</em>{\theta}(\mathbf{s}<em>t),
+\operatorname{diag}(\boldsymbol{\sigma}</em>{\theta}^{2})),\qquad
+\mathbf{a}_t=\tanh(\mathbf{u}_t).
+\tag{15}
+$$</p>
+<p>The log density includes the Jacobian correction for the nonlinear transformation,</p>
+<p>$$
+\log\pi_{\theta}(\mathbf{a}<em>t|\mathbf{s}_t)=
+\log\mathcal{N}(\operatorname{atanh}(\mathbf{a}_t);\boldsymbol{\mu}</em>{\theta},\boldsymbol{\sigma}<em>{\theta})
+-\sum_i\log(1-a</em>{t,i}^{2}+\epsilon).
+\tag{16}
+$$</p>
+<p>The executed joint velocity is additionally multiplied by an error-dependent gain (g_t). Position and rotation errors are normalized by the current curriculum success thresholds, and the more severe normalized error is mapped through a piecewise-linear schedule from 0.1 to 1.0,</p>
+<p>$$
+g_t=\min!\left(g_{\mathrm{stage}},
+\operatorname{interp}!\left[
+\max!\left(\frac{|\mathbf{e}<em>{p,t}|}{\delta_p},
+\frac{|\mathbf{e}</em>{R,t}|}{\delta_R}\right)
+\right]\right).
+\tag{17}
+$$</p>
+<p><img alt="PPO actor critic" src="figures/ppo_architecture_en.png" /></p>
+<p><strong>Fig. 4.</strong> Actor–Critic structure and action execution. The policy outputs normalized joint velocities; error-dependent scaling preserves small corrections near the target while permitting faster motion at larger errors.</p>
+<h4>3) Frozen Rollout Targets and Independent Updates</h4>
+<p>After each rollout, temporal-difference residuals and GAE are computed once using a frozen old value function,</p>
+<p>$$
+\delta_t=r_t+\gamma(1-d_t)V_{\mathrm{old}}(s_{t+1})-V_{\mathrm{old}}(s_t),\qquad
+\hat{A}<em>t=\sum</em>{l=0}^{T-t-1}(\gamma\lambda)^l\delta_{t+l}.
+\tag{18}
+$$</p>
+<p>The advantages and value targets</p>
+<p>$$
+\hat{V}<em>t=V</em>{\mathrm{old}}(s_t)+\hat{A}_t
+\tag{19}
+$$</p>
+<p>remain fixed throughout all minibatch epochs of the update. The Actor maximizes the clipped surrogate objective with entropy regularization,</p>
+<p>$$
+J_{\pi}(\theta)=\mathbb{E}<em>t!\left[
+\min!\left(r_t(\theta)\hat{A}_t,
+\operatorname{clip}(r_t(\theta),1-\epsilon,1+\epsilon)\hat{A}_t\right)
++\beta\mathcal{H}(\pi</em>{\theta})
+\right],
+\tag{20}
+$$</p>
+<p>where (r_t(\theta)=\pi_{\theta}(a_t|s_t)/\pi_{\mathrm{old}}(a_t|s_t)). If approximate Kullback–Leibler divergence exceeds its threshold, Actor epochs stop early; the independently optimized Critic still completes its regression,</p>
+<p>$$
+L_V(\phi)=\frac{1}{2}\mathbb{E}<em>t[(V</em>{\phi}(s_t)-\hat{V}_t)^2].
+\tag{21}
+$$</p>
+<h4>4) Curriculum and Reward</h4>
+<p>Training uses 50 logical slots that share one UR5e model definition but maintain independent MuJoCo states and randomized tasks. Thirty stages are used. Ten masked-position stages learn reaching over 6–150 mm without orientation input. Ten observed-position stages expose orientation inputs while retaining a position objective, allowing normalization and network adaptation. Ten joint-pose stages expand from 20 mm/5° to 150 mm/45° and optimize both position and orientation. Promotion uses equally weighted completed tasks over the latest update window rather than repeatedly counting short, easy tasks.</p>
+<p>Position quality combines a success-threshold-scaled exponential term and a long-tail inverse-quadratic term,</p>
+<p>$$
+Q_p=0.7\exp!\left[-\ln 2\left(\frac{e_p}{\delta_p}\right)^2\right]
++0.3\frac{1}{1+(e_p/e_{p,\max})^2}.
+\tag{22}
+$$</p>
+<p>Orientation quality compares three 5-cm virtual markers anchored at a common origin, so translational error is not counted twice,</p>
+<p>$$
+Q_R=\frac{1}{1+k_R E_{\mathrm{marker}}}.
+\tag{23}
+$$</p>
+<p>Position and orientation weights are adjusted according to their normalized urgency. A component already inside its success region retains a small quality weight but receives no additional positive progress reward. The per-step reward is</p>
+<p>$$
+r_t=0.1(Q_t-1)
++2w_p\operatorname{clip}!\left(\frac{e_{p,t-1}-e_{p,t}}{5\ \mathrm{mm}},-1,1\right)
++4w_R\operatorname{clip}!\left(\frac{e_{R,t-1}-e_{R,t}}{\Delta_R},-1,1\right)
+-\lambda_a C_a+R_{\mathrm{term}}.
+\tag{24}
+$$</p>
+<p>Success yields +10. Collision, boundary violation, or a nonfinite state yields −10 plus the discounted baseline cost of the remaining steps, preventing the agent from escaping step costs by failing early. A time limit is treated as a rollout boundary rather than a physical terminal state, so GAE bootstraps from the next-state value.</p>
+<h2>V. EXPERIMENTS</h2>
+<h3>A. Simulation and Training Configuration</h3>
+<p>Experiments use the UR5e model in MuJoCo [9] with <code>attachment_site</code> as the TCP. A rigid U-shaped gripper and eye-in-hand camera are attached to the terminal link. The target is a sphere proxy with mass, radius, and contact parameters. Dynamic trajectories last 5–7 s, use speeds of 0.11–0.18 m/s with 10%–20% smooth modulation, and span 0.55–0.75 m. Their local curvature changes smoothly without deliberately inserted curvature reversals. Candidate trajectories are filtered by base distance, height, workspace openness, and full-trajectory visibility.</p>
+<p>The final PPO configuration uses (\gamma=0.99), (\lambda=0.95), clip parameter 0.2, Actor learning rate (2\times10^{-5}), Critic learning rate (10^{-4}), and minibatches of 512 samples. Each update permits eight Actor epochs and twelve Critic epochs. Entropy coefficients decay within each curriculum stage, with limited exploration recovery only after a sustained plateau and a sufficiently predictive Critic.</p>
+<h3>B. Metrics and Evidence Boundaries</h3>
+<p>Training records completed-task success, terminal position and orientation errors, steps to reach, action saturation, Critic explained variance, and net TCP displacement over 50 and 100 ms. Dynamic inference is currently evaluated qualitatively through controller-mode transitions, continuous target visibility, and the complete MuJoCo motion sequence. Training rollout statistics are not presented as dynamic generalization results.</p>
+<h3>C. Curriculum Training Results</h3>
+<p>The complete run performed 34,745 updates and passed all 30 curriculum stages. Stage transitions enlarge the task distribution and therefore cause expected temporary error increases, after which success recovers. The best checkpoint in the final J10 stage occurs at update 34,547. It achieves 92% equally weighted completed-task success, 2.95 mm mean and 4.00 mm 95th-percentile terminal position error, 3.94° mean and 4.83° 95th-percentile terminal orientation error, 1.97% action saturation, and 0.997 post-update Critic explained variance.</p>
+<p><strong>TABLE II</strong></p>
+<p><strong>FINAL-CURRICULUM BEST-CHECKPOINT RESULTS</strong></p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th style="text-align: right;">Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Completed-task success</td>
+<td style="text-align: right;">92%</td>
+</tr>
+<tr>
+<td>Terminal position error, mean / P95</td>
+<td style="text-align: right;">2.95 / 4.00 mm</td>
+</tr>
+<tr>
+<td>Terminal orientation error, mean / P95</td>
+<td style="text-align: right;">3.94° / 4.83°</td>
+</tr>
+<tr>
+<td>Action saturation</td>
+<td style="text-align: right;">1.97%</td>
+</tr>
+<tr>
+<td>Critic explained variance</td>
+<td style="text-align: right;">0.997</td>
+</tr>
+</tbody>
+</table>
+<p><img alt="Complete curriculum training" src="figures/training_overview.png" /></p>
+<p><strong>Fig. 5.</strong> Complete curriculum training. From top to bottom: completed-task success, position error, orientation error, and mean/progress rewards. Abrupt changes correspond to deliberate task-distribution expansion.</p>
+<p><img alt="Per-stage convergence" src="figures/stage_summary.png" /></p>
+<p><strong>Fig. 6.</strong> Per-stage summary over the last ten updates. Masked-position, observed-position, and joint-pose stages progressively expand the target range while retaining the 75% promotion objective.</p>
+<h3>D. Online Inference Sequence</h3>
+<p>Fig. 7 combines three representative frames with the causal switching logic. In Fig. 7(a), only raw measurements are accumulated and the robot holds its observation pose. At frame six, Fig. 7(b), the initialized Kalman state and causal spline reconstruct a Cage pose, and the bounded Jacobian controller reduces the large error. Once the local-entry thresholds have been met, Fig. 7(c), PPO is latched and supplies continuous joint-velocity corrections while target motion and camera acquisition continue independently.</p>
+<p><img alt="Online inference state machine" src="figures/inference_state_machine.png" /></p>
+<p><strong>Fig. 7.</strong> Online inference sequence and switching logic. The three compact panels show the global MuJoCo view, the physical gripper/Cage inset, and the eye-in-hand view; the lower state strip summarizes the causal transition conditions.</p>
+<p>At this stage, online inference demonstrates executable integration of continuous target motion, persistent RGB-D acquisition, five-frame state bootstrap, Cage reconstruction, and Jacobian-to-PPO transition. Dynamic TCP-to-Cage error distributions and cross-trajectory success are intentionally deferred until a fixed evaluation suite and unified logging protocol are available.</p>
+<h3>E. Interpretation</h3>
+<p>The training results support the intended division of labor. PPO is optimized for repeated local correction, whereas the Jacobian controller supplies an explicit descent direction over large errors. The fixed (\alpha=0.4375) prior avoids adding regression error when the current EST data show almost no predictable state dependence. Online computation is therefore limited to motion filtering, causal curve fitting, plane estimation, one Cage reconstruction, and control.</p>
+<h2>VI. DISCUSSION AND LIMITATIONS</h2>
+<p>The evidence supports the engineering rationale for a hybrid controller, but it does not yet establish robust capture over arbitrary dynamic trajectories. First, the current experiments use MuJoCo and color/depth-based target segmentation. A real detector will introduce class errors, exposure changes, missing depth, and calibration drift. Second, the fixed arc prior is specific to the present gripper, object proxy, disturbance distribution, and speed range; changing these conditions requires a new EST audit. Third, PPO is trained on locally sampled Cage goals, whereas the online reference changes continuously, leaving a simulation-to-task distribution gap. Fourth, three missed frames currently define visual failure without distinguishing occlusion, field-of-view loss, invalid depth, and detector failure.</p>
+<p>Future experiments will use a fixed seed suite stratified by trajectory height, direction, curvature, and initial error; compare Jacobian-only, PPO-only, no-filter, and no-EST-prior variants; validate hand-eye calibration and ROS control on a physical UR5e; and reevaluate whether a fixed arc prior remains adequate for diverse object and gripper geometries.</p>
+<h2>VII. CONCLUSION</h2>
+<p>This paper presented a causal dynamic-Cage reconstruction and hybrid Jacobian–PPO controller for continuous tracking of moving targets. Five eye-in-hand observations initialize a nine-dimensional motion state; Kalman filtering, a causal spline, and local principal-component analysis then estimate motion without future ground truth. Cage candidates follow a speed-dependent minor arc, while offline EST propagation compares them through identical dynamic disturbances and the true U-shaped gripper region. A bounded Jacobian controller handles coarse approach, and a curriculum-trained PPO policy performs local joint-velocity tracking. The final curriculum checkpoint achieved high local reach accuracy over initial errors up to 150 mm and 45°, and the integrated visualization confirmed the complete online state sequence. The next experimental priority is a standardized dynamic benchmark followed by real-camera and real-robot validation.</p>
+<h2>REFERENCES</h2>
+<p>[1] M. Ito and M. Shibata, “Image-based visual tracking control of hand-eye robot for moving target object,” <em>IEEJ Trans. Ind. Appl.</em>, vol. 129, no. 9, pp. 930–937, 2009, doi: 10.1541/ieejias.129.930.</p>
+<p>[2] E. Cervera, A. P. del Pobil, F. Berry, and P. Martinet, “Robotic visual servoing of moving targets,” in <em>Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS)</em>, 2013, doi: 10.1109/IROS.2013.6696335.</p>
+<p>[3] G. Dong and Z. H. Zhu, “Autonomous robotic capture of non-cooperative target by adaptive extended Kalman filter based visual servo,” <em>Acta Astronaut.</em>, vol. 122, pp. 209–218, 2016, doi: 10.1016/j.actaastro.2016.02.003.</p>
+<p>[4] V. Kumar, D. Hoeller, B. Sundaralingam, J. Tremblay, and S. Birchfield, “Joint space control via deep reinforcement learning,” in <em>Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS)</em>, 2021.</p>
+<p>[5] J. Schulman, F. Wolski, P. Dhariwal, A. Radford, and O. Klimov, “Proximal policy optimization algorithms,” arXiv:1707.06347, 2017.</p>
+<p>[6] Y. Dong, X. Cheng, and F. T. Pokorny, “Caging in motion: Characterizing robustness in manipulation through energy margin and dynamic caging analysis,” arXiv:2404.12115, 2024.</p>
+<p>[7] D. Hsu, J.-C. Latombe, R. Motwani, and S. Sorkin, “Path planning in expansive configuration spaces,” in <em>Proc. IEEE Int. Conf. Robot. Autom. (ICRA)</em>, pp. 2719–2726, 1997, doi: 10.1109/ROBOT.1997.619371.</p>
+<p>[8] J. Schulman, P. Moritz, S. Levine, M. Jordan, and P. Abbeel, “High-dimensional continuous control using generalized advantage estimation,” arXiv:1506.02438, 2015.</p>
+<p>[9] E. Todorov, T. Erez, and Y. Tassa, “MuJoCo: A physics engine for model-based control,” in <em>Proc. IEEE/RSJ Int. Conf. Intell. Robots Syst. (IROS)</em>, pp. 5026–5033, 2012, doi: 10.1109/IROS.2012.6386109.</p>
+<p>[10] C. W. Wampler, “Manipulator inverse kinematic solutions based on vector formulations and damped least-squares methods,” <em>IEEE Trans. Syst., Man, Cybern.</em>, vol. 16, no. 1, pp. 93–101, 1986.</p>
+<p>[11] R. E. Kalman, “A new approach to linear filtering and prediction problems,” <em>J. Basic Eng.</em>, vol. 82, no. 1, pp. 35–45, 1960.</p>
+<p>[12] I. T. Jolliffe, <em>Principal Component Analysis</em>, 2nd ed. New York, NY, USA: Springer, 2002.</p></div></body>
+</html>

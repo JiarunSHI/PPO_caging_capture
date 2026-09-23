@@ -1,0 +1,16 @@
+extends: ur5e_vision.yaml
+
+# PPO interacts with a separately generated trajectory archive. It never sees
+# the trajectories used to fit the frozen Cage network.
+system:
+  seed: 20260825
+
+trajectory:
+  count: 12
+  duration_s: [2.8, 4.2]
+
+ppo:
+  rollout_steps: 128
+  updates: 6
+  update_epochs: 4
+  minibatch_size: 64

@@ -1,0 +1,419 @@
+extends: default.yaml
+
+# Independent JAiLeR-style controller branch.  It does not consume Cage
+# trajectories or eye-on-hand images during the static reaching curriculum.
+vision:
+  enabled: false
+
+jailer:
+  seed: 20260901
+  control_rate_hz: 100.0
+  logical_slots: 40
+  # Rollout length is stage-local.  Each stage declares its own number of
+  # 100 Hz control steps per logical slot; batch size is steps x 40 slots.
+  action_joint_velocity_limit_fraction: 0.50
+  joint_position_margin_rad: 0.08
+  joint_acceleration_limit_radps2: [12.0, 12.0, 12.0, 20.0, 20.0, 20.0]
+  target_sampling_max_attempts: 2000
+  target_sampling_pool_retries: 12
+  checkpoint_interval_updates: 50
+  success_curve_interval_updates: 100
+  success_curve_position_bin_width_m: 0.005
+  success_curve_orientation_bin_width_deg: 2.0
+  best_orientation_radian_weight: 0.10
+  # Legacy position-only checkpoints saw exactly zero in state[3:6].  When
+  # importing such an Actor, use this fixed physical scale and zero only the
+  # previously untrained first-layer orientation columns.
+  legacy_orientation_input_std_deg: 10.0
+  # At the P6 -> first pose bridge boundary restore enough exploration to
+  # learn the newly important orientation response.  The bridge's small
+  # physical velocity scale keeps this exploration safe.
+  pose_transition_min_log_std: -1.20
+
+  # JAiLeR position reward plus the paper's suggested three TCP-axis marker
+  # geometry for the later pose extension.  Joint acceleration is an effort
+  # regularizer, not a replacement for TCP error.
+  # Shift pose quality into a non-positive per-step cost and add a terminal
+  # success bonus.  This makes reaching sooner preferable to loitering just
+  # outside the threshold after early task termination is enabled.
+  reward_position_error_gain: 400.0
+  orientation_marker_lever_m: 0.05
+  reward_orientation_marker_gain: 40000.0
+  reward_orientation_progress_weight: 2.0
+  reward_orientation_progress_reference_deg: 10.0
+  # Dense near-goal shaping for pose refinement.  It rewards reduction of
+  # position error and penalizes moving away, with a smooth gate that fades to
+  # zero outside the local pose-control neighborhood.
+  reward_position_progress_weight: 1.0
+  reward_position_progress_reference_m: 0.005
+  reward_near_target_position_m: 0.030
+  reward_near_target_orientation_deg: 15.0
+  reward_position_quality_weight: 0.60
+  reward_step_quality_baseline: 1.0
+  reward_joint_acceleration_weight: 0.001
+  success_bonus: 1.0
+  collision_penalty: 2.0
+
+  initial_pose_pool:
+    joint_offset_max_rad: [2.0, 1.2, 1.2, 1.6, 1.6, 2.0]
+    joint_limit_margin_rad: 0.12
+    minimum_pairwise_joint_distance_rad: 0.35
+    maximum_attempts: 30000
+
+  curriculum:
+    promotion_window_updates: 10
+    # Continue optimizing the final fine-control stage until all configured
+    # updates are consumed; mastering it no longer stops training early.
+    stop_when_final_stage_mastered: false
+    stages:
+      - name: position_p01_006_020mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 60
+        position_error_range_m: [0.006, 0.020]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.04, 0.04, 0.04, 0.03, 0.03, 0.03]
+        minimum_updates: 100
+        success_position_m: 0.0015
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0025
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.80
+      - name: position_p02_006_035mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 60
+        position_error_range_m: [0.006, 0.035]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.07, 0.07, 0.07, 0.05, 0.05, 0.05]
+        minimum_updates: 100
+        success_position_m: 0.002
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.003
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.80
+      - name: position_p03_006_055mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 70
+        position_error_range_m: [0.006, 0.055]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.12, 0.12, 0.12, 0.08, 0.08, 0.08]
+        minimum_updates: 100
+        success_position_m: 0.0025
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0035
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.80
+      - name: position_p04_006_080mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 80
+        position_error_range_m: [0.006, 0.080]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.18, 0.18, 0.18, 0.12, 0.12, 0.12]
+        minimum_updates: 100
+        success_position_m: 0.003
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0045
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.80
+      - name: position_p05_006_110mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 100
+        position_error_range_m: [0.006, 0.110]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.25, 0.25, 0.25, 0.18, 0.18, 0.18]
+        minimum_updates: 150
+        success_position_m: 0.0035
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0055
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.80
+      - name: position_p06_006_150mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 130
+        position_error_range_m: [0.006, 0.150]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.35, 0.35, 0.35, 0.25, 0.25, 0.25]
+        minimum_updates: 150
+        success_position_m: 0.004
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.008
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      # Pose bridges keep the O1 target distribution fixed while tightening
+      # only the terminal pose requirements.  This prevents a discontinuous
+      # jump from a position controller to the final 2 mm / 1.5 deg target.
+      - name: pose_bridge_b01_006_025mm_12deg
+        task: pose
+        reward_orientation_quality_weight: 0.24
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 80
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 100
+        success_position_m: 0.006
+        success_orientation_deg: 12.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.006
+        promotion_orientation_mean_deg: 7.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_bridge_b02_006_025mm_08deg
+        task: pose
+        reward_orientation_quality_weight: 0.26
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 90
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 125
+        success_position_m: 0.005
+        success_orientation_deg: 8.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0055
+        promotion_orientation_mean_deg: 6.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_bridge_b03_006_025mm_04deg
+        task: pose
+        reward_orientation_quality_weight: 0.28
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 100
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.004
+        success_orientation_deg: 4.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.005
+        promotion_orientation_mean_deg: 4.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      # Fine pose bridges retain exactly the B3 target distribution and the
+      # 0.10 physical action scale.  Only the terminal precision is tightened,
+      # one small step at a time, before the final O1 requirement.
+      - name: pose_bridge_b04_006_025mm_035deg
+        task: pose
+        reward_orientation_quality_weight: 0.285
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 110
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.004
+        success_orientation_deg: 3.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0045
+        promotion_orientation_mean_deg: 3.7
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_bridge_b05_006_025mm_030deg
+        task: pose
+        reward_orientation_quality_weight: 0.290
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 120
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.0035
+        success_orientation_deg: 3.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0040
+        promotion_orientation_mean_deg: 3.2
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_bridge_b06_006_025mm_022deg
+        task: pose
+        reward_orientation_quality_weight: 0.295
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 130
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 175
+        success_position_m: 0.0028
+        success_orientation_deg: 2.2
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0032
+        promotion_orientation_mean_deg: 2.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_o01_006_025mm_01_05deg
+        task: pose
+        reward_orientation_quality_weight: 0.30
+        action_velocity_scale: 0.10
+        rollout_steps_per_slot: 80
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.002
+        success_orientation_deg: 1.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0025
+        promotion_orientation_mean_deg: 2.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_o02_006_040mm_01_10deg
+        task: pose
+        reward_orientation_quality_weight: 0.35
+        action_velocity_scale: 0.15
+        rollout_steps_per_slot: 90
+        position_error_range_m: [0.006, 0.040]
+        orientation_error_range_deg: [1.0, 10.0]
+        target_joint_offset_max_rad: [0.08, 0.08, 0.08, 0.08, 0.08, 0.08]
+        minimum_updates: 150
+        success_position_m: 0.0025
+        success_orientation_deg: 2.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.003
+        promotion_orientation_mean_deg: 3.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_o03_006_060mm_01_16deg
+        task: pose
+        reward_orientation_quality_weight: 0.40
+        action_velocity_scale: 0.25
+        rollout_steps_per_slot: 110
+        position_error_range_m: [0.006, 0.060]
+        orientation_error_range_deg: [1.0, 16.0]
+        target_joint_offset_max_rad: [0.14, 0.14, 0.14, 0.14, 0.14, 0.14]
+        minimum_updates: 175
+        success_position_m: 0.003
+        success_orientation_deg: 3.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0035
+        promotion_orientation_mean_deg: 4.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_o04_006_090mm_01_24deg
+        task: pose
+        reward_orientation_quality_weight: 0.45
+        action_velocity_scale: 0.40
+        rollout_steps_per_slot: 130
+        position_error_range_m: [0.006, 0.090]
+        orientation_error_range_deg: [1.0, 24.0]
+        target_joint_offset_max_rad: [0.22, 0.22, 0.22, 0.22, 0.22, 0.22]
+        minimum_updates: 175
+        success_position_m: 0.0035
+        success_orientation_deg: 4.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0045
+        promotion_orientation_mean_deg: 5.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_o05_006_120mm_01_35deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        action_velocity_scale: 0.65
+        rollout_steps_per_slot: 150
+        position_error_range_m: [0.006, 0.120]
+        orientation_error_range_deg: [1.0, 35.0]
+        target_joint_offset_max_rad: [0.32, 0.32, 0.32, 0.32, 0.32, 0.32]
+        minimum_updates: 200
+        success_position_m: 0.004
+        success_orientation_deg: 5.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0055
+        promotion_orientation_mean_deg: 7.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: pose_o06_006_150mm_01_45deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 180
+        position_error_range_m: [0.006, 0.150]
+        orientation_error_range_deg: [1.0, 45.0]
+        target_joint_offset_max_rad: [0.45, 0.45, 0.45, 0.45, 0.45, 0.45]
+        minimum_updates: 200
+        success_position_m: 0.0045
+        success_orientation_deg: 7.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0065
+        promotion_orientation_mean_deg: 9.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+
+  ppo:
+    state_dim: 18
+    action_dim: 6
+    hidden_dims: [128, 128]
+    pose_residual_hidden_dims: [64, 64]
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_epsilon: 0.2
+    value_coefficient: 0.5
+    entropy_coefficient: 0.002
+    # Fine-control continuation uses smaller PPO updates; the longer 4,000
+    # update schedule replaces the former need for aggressive 3e-4 steps.
+    learning_rate: 0.0001
+    pose_residual_learning_rate: 0.0005
+    max_grad_norm: 0.5
+    state_normalization_clip: 10.0
+    state_normalization_epsilon: 1.0e-8
+    target_kl: 0.02
+    kl_stop_multiplier: 1.5
+    action_saturation_threshold: 0.98
+    updates: 4000
+    update_epochs: 10
+    minibatch_size: 1024
+
+constrained_differential_ik:
+  control_rate_hz: 100.0
+  position_only: false
+  position_gain_s_inv: 5.0
+  orientation_gain_s_inv: 4.0
+  maximum_tcp_linear_speed_mps: 0.60
+  maximum_tcp_angular_speed_radps: 2.0
+  position_task_weight: 1.0
+  orientation_task_weight: 0.25
+  regularization: 0.001
+  joint_velocity_limit_fraction: 0.70
+  joint_position_margin_rad: 0.08
+  joint_acceleration_limit_radps2: [12.0, 12.0, 12.0, 20.0, 20.0, 20.0]
+  qp_max_iterations: 100
+  settling_time_s: 0.50
+  success_position_m: 0.005
+  success_orientation_deg: 3.0
+  success_tcp_speed_mps: 0.020
+  success_tcp_angular_speed_radps: 0.10

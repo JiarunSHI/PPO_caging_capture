@@ -1,0 +1,19 @@
+extends: ur5e_dynamic_cage_inference.yaml
+
+# Fixed validation contract: trajectories stay away from the UR5e base column
+# and alternate the two signed curvature directions by accepted episode index.
+system:
+  seed: 20261015
+
+trajectory:
+  plane_origin_bounds: [[0.50, 0.58], [-0.10, 0.10], [0.32, 0.50]]
+  turn_sign_mode: alternating_track_id_v1
+
+dynamic_cage_inference:
+  # Full 3-D Base distance and horizontal distance to the Base axis must both
+  # remain valid for every point of the complete privileged setup trajectory.
+  minimum_base_distance_m: 0.48
+  minimum_base_xy_distance_m: 0.45
+  maximum_base_distance_m: 0.72
+  base_height_bounds_m: [0.24, 0.68]
+  maximum_trajectory_attempts_per_episode: 600

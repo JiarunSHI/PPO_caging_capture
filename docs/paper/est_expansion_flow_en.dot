@@ -1,0 +1,48 @@
+digraph ESTExpansion {
+  graph [rankdir=TB, bgcolor="white", pad="0.12", nodesep="0.28", ranksep="0.36",
+         fontname="Times New Roman", fontsize=12];
+  node [shape=box, style="rounded,filled", color="#31546D", fillcolor="#EAF4FA",
+        fontname="Times New Roman", fontsize=10, margin="0.13,0.07"];
+  edge [color="#4A6475", penwidth=0.9, arrowsize=0.65,
+        fontname="Times New Roman", fontsize=8];
+
+  root [label="Root state\nposition + linear velocity\nidentity rotation + zero angular velocity", fillcolor="#FFF2CC"];
+  pose [label="Fix one Cage candidate\nfor the entire tree"];
+  tape [label="Shared disturbance tape\n3 repeats · 640 nodes/tree"];
+  density [label="Candidate-frame 9-D grid\nposition + linear/angular velocity"];
+  select [label="Low-density parent selection\nuniform occupied-cell sampling"];
+  disturb [label="Random force and torque\nduration: 15–60 ms"];
+  sim [label="MuJoCo forward dynamics\n5-ms integration step", fillcolor="#DDEBF7"];
+  valid [shape=diamond, label="Finite, within bounds,\nand penetration ≤ 6 mm?", fillcolor="#FCE4D6"];
+  illegal [label="Mark illegal\ncount; do not expand", fillcolor="#F4CCCC"];
+  inside [shape=diamond, label="Target center inside the true\nU-shaped gripper region?", fillcolor="#E2F0D9"];
+  status [label="Record inside, outside,\nand opening-escape status"];
+  stop [shape=diamond, label="640 nodes, 0.8 s,\nor no selectable parent?", fillcolor="#FCE4D6"];
+  score [label="Tree score\ninside nodes / all nodes", fillcolor="#D9EAD3"];
+  repeat [label="Repeat candidate three times\nmean and standard deviation"];
+  winner [label="Compare all candidates under\nidentical conditions; maximize mean", fillcolor="#CFE2F3"];
+  output [label="Save winner\npose · arc location · radius\narc limits · EST audit", fillcolor="#FFF2CC"];
+
+  arc_bias [shape=note, label="Disturbance directions\n70% toward motion arc\n30% global 3-D exploration", fillcolor="#F3F3F3"];
+  real_region [shape=note, label="True gripper geometry\nNo obsolete ±30°\nswept Cap volume", fillcolor="#F3F3F3"];
+
+  {rank=same; root; pose}
+  {rank=same; tape; density}
+  {rank=same; select; disturb}
+  {rank=same; sim; valid}
+  {rank=same; illegal; inside}
+  {rank=same; status; stop}
+  {rank=same; score; repeat}
+  {rank=same; winner; output}
+  root -> pose -> tape -> density -> select -> disturb -> sim -> valid;
+  valid -> illegal [label="No"];
+  valid -> inside [label="Yes"];
+  inside -> status [label="Yes / No"];
+  status -> stop;
+  illegal -> stop;
+  stop -> density [label="Continue", constraint=false];
+  stop -> score [label="Stop"];
+  score -> repeat -> winner -> output;
+  arc_bias -> tape [style=dashed, arrowhead=none];
+  real_region -> inside [style=dashed, arrowhead=none];
+}

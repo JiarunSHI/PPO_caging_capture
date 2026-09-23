@@ -1,0 +1,16 @@
+extends: ur5e_vision.yaml
+
+trajectory:
+  duration_s: [2.5, 2.5]
+  dropout_probability: 0.0
+  outlier_probability: 0.0
+
+candidate:
+  radius_min_m: 0.110
+  radius_max_m: 0.120
+  nominal_samples_per_arc: 5
+  orientation_branches: [1]
+
+est:
+  node_count: 80
+  minimum_retention_ratio: 0.01

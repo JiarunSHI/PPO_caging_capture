@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>动态Cage随动系统PPO2训练设计与当前实现说明</title>
+  <style>
+    @page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+    body {
+      font-family: "Noto Sans CJK SC", "Noto Sans CJK JP", "Droid Sans Fallback", sans-serif;
+      color: #1f2937;
+      font-size: 10.5pt;
+      line-height: 1.58;
+      margin: 0;
+    }
+    h1 { color: #17365d; font-size: 24pt; line-height: 1.25; margin: 0 0 12pt 0; }
+    h2 { color: #17365d; font-size: 16pt; margin: 18pt 0 8pt 0; border-bottom: 1px solid #9fbad0; padding-bottom: 3pt; }
+    h3 { color: #24557a; font-size: 12.5pt; margin: 13pt 0 5pt 0; }
+    p { margin: 5pt 0; text-align: justify; }
+    ul, ol { margin: 4pt 0 8pt 20pt; }
+    li { margin: 2pt 0; }
+    table { border-collapse: collapse; width: 100%; margin: 8pt 0 12pt 0; page-break-inside: avoid; }
+    th, td { border: 1px solid #9ca3af; padding: 5pt 6pt; vertical-align: top; }
+    th { background: #dbeaf4; color: #17365d; text-align: left; }
+    code, pre { font-family: "DejaVu Sans Mono", monospace; }
+    pre {
+      background: #f3f6f8;
+      border-left: 4px solid #3f7da6;
+      padding: 8pt 10pt;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      page-break-inside: avoid;
+    }
+    .cover { text-align: center; padding-top: 58mm; page-break-after: always; }
+    .cover h1 { text-align: center; }
+    .subtitle { font-size: 14pt; color: #49657b; margin-top: 14pt; text-align: center; }
+    .meta { margin-top: 48mm; color: #5f6b76; text-align: center; }
+    .notice, .key, .warning {
+      padding: 8pt 10pt;
+      margin: 8pt 0;
+      page-break-inside: avoid;
+    }
+    .notice { background: #edf6fb; border: 1px solid #8db8d1; }
+    .key { background: #eef8ee; border: 1px solid #82b482; }
+    .warning { background: #fff6e5; border: 1px solid #d6aa52; }
+    .formula {
+      text-align: center;
+      font-family: "DejaVu Sans", "Noto Sans CJK SC", sans-serif;
+      background: #f7f7f7;
+      border: 1px solid #d1d5db;
+      padding: 7pt;
+      margin: 7pt 12pt;
+      page-break-inside: avoid;
+    }
+    .flow td { text-align: center; vertical-align: middle; background: #f7fbfd; }
+    .arrow { color: #3f7da6; font-weight: bold; font-size: 14pt; }
+    .small { font-size: 9pt; color: #4b5563; }
+    .page-break { page-break-before: always; }
+    .toc a { color: #17365d; text-decoration: none; }
+    .check { color: #176b36; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>动态Cage随动系统<br>PPO2训练设计与当前实现说明</h1>
+  <p class="subtitle">UR5e · MuJoCo · Eye-on-Hand · Cage网络 · 有界连续动作PPO</p>
+  <p class="meta">项目：PPO_caging_capture<br>依据当前代码实现整理<br>2026年8月24日</p>
+</div>
+
+<p style="page-break-before: always; margin: 0;"></p>
+
+<h2>文档目的与结论摘要</h2>
+
+<p>本文整理当前项目中PPO2部分的完整训练思路，重点说明18维状态、共享Actor-Critic网络、六维有界关节增量、tanh变换后的概率密度、同一Cage目标奖励、GAE、裁剪更新、熵估计、检查点和冻结推理接口。本文描述的是当前代码，而不是脱离实现的通用PPO模板。</p>
+
+<div class="key">
+  <b>三个最重要的结论：</b>
+  <ol>
+    <li>动作头按状态输出六维均值；六维 <code>log_std</code> 独立维护，但它是<b>可学习、状态无关</b>的参数，不是训练期间不变的常数。</li>
+    <li><code>tanh</code> 将无界高斯样本变成 <code>(-1,1)</code> 内的归一化动作。它提供有界接口，但最终安全仍由单次增量、关节速度和关节位置限制共同保证。</li>
+    <li>PPO更新不对动作本身求最优值，也不穿过MuJoCo反向传播；已执行动作是固定样本，梯度通过该动作在新策略下的联合对数概率回传到网络参数。</li>
+  </ol>
+</div>
+
+<h2>目录</h2>
+<ol class="toc">
+  <li>系统中的PPO位置</li>
+  <li>时间触发与一步交互</li>
+  <li>状态、动作和策略网络</li>
+  <li>从原始动作到物理关节命令</li>
+  <li>tanh后的概率密度与Jacobian修正</li>
+  <li>Rollout采集和同一Cage目标契约</li>
+  <li>奖励函数</li>
+  <li>GAE、价值目标与优势归一化</li>
+  <li>PPO裁剪更新与熵估计</li>
+  <li>训练循环、GPU分工与检查点</li>
+  <li>诊断指标、当前检查结论与训练指令</li>
+</ol>
+
+<h2 class="page-break">1. 系统中的PPO位置</h2>
+
+<p>PPO不是Cage姿态预测器。冻结的Cage网络根据最近五帧目标历史状态预测当前时刻的六维Cage目标位姿；PPO接收该目标位姿以及机器人当前关节状态，输出六个关节的归一化增量。二者职责严格分开：</p>
+
+<pre>Eye-on-Hand RGB-D观测
+    ↓
+目标中心点转到Base坐标系
+    ↓
+五帧历史（每帧三维位置 + 线速度标量）
+    ↓
+冻结Cage网络（20维输入）
+    ↓
+当前Cage目标（六维TCP位姿）
+    ↓
+PPO状态（18维）
+    ↓
+PPO Actor → 六维有界动作 → UR5e关节命令 → MuJoCo执行</pre>
+
+<div class="notice">
+  <b>容易混淆的维度：</b>Cage网络输入是5帧×每帧4维，即20维；PPO输入不是这20维，而是“Cage六维目标位姿 + 当前六关节角 + 当前六关节速度”，共18维。
+</div>
+
+<h2>2. 时间触发与一步交互</h2>
+
+<p>当前视觉配置使用20 Hz检测，即每50 ms完成一次视觉事件。一次新的PPO决策由一次完成的视觉更新触发，不存在独立于视觉的高频PPO推理循环。MuJoCo仍然按照MJCF中的小时间步积分执行器和机器人动力学，但这些子步只负责执行同一条关节命令。</p>
+
+<ol>
+  <li>视觉帧完成检测，更新五帧历史缓存。</li>
+  <li>冻结Cage网络预测当前Cage目标 <code>C_t</code>。</li>
+  <li>读取当前关节角和关节速度，构造状态 <code>s_t</code>。</li>
+  <li>PPO只对 <code>s_t</code>推理一次，得到动作 <code>a_t</code>。</li>
+  <li>在当前50 ms区间内，MuJoCo通过多个小步执行同一关节目标命令。</li>
+  <li>使用动作前保存的 <code>C_t</code>评价动作执行结果，得到奖励 <code>r_t</code>。</li>
+  <li>区间结束时采集新RGB-D帧，产生 <code>C_(t+1)</code>，再构造 <code>s_(t+1)</code>。</li>
+</ol>
+
+<pre>s_t=[C_t, q_t, qdot_t] → a_t → MuJoCo执行50 ms → 用C_t计算r_t
+                                           ↓
+                                  新视觉帧得到C_(t+1)
+                                           ↓
+                              s_(t+1)=[C_(t+1), q_(t+1), qdot_(t+1)]</pre>
+
+<p>如果视觉观测超过配置的最大陈旧时间，当前实现将本次动作抑制为零，防止机器人依据过时目标继续运动。</p>
+
+<h2>3. 状态、动作和策略网络</h2>
+
+<h3>3.1 18维状态</h3>
+
+<table>
+  <tr><th>字段</th><th>维数</th><th>含义</th><th>坐标/单位</th></tr>
+  <tr><td>Cage目标位姿</td><td>6</td><td>目标TCP位置3维 + 旋转向量3维</td><td>Base系；m、rad</td></tr>
+  <tr><td>关节角</td><td>6</td><td>UR5e六个关节当前位置</td><td>rad</td></tr>
+  <tr><td>关节速度</td><td>6</td><td>UR5e六个关节当前速度</td><td>rad/s</td></tr>
+  <tr><th>合计</th><th>18</th><th colspan="2">PPO固定输入契约</th></tr>
+</table>
+
+<p>原始18维状态在进入网络前使用运行均值和运行方差标准化，并裁剪到 <code>[-10,10]</code>。标准化统计随训练数据持续更新；检查点保存最终统计量，在线推理时冻结，避免训练和推理尺度不一致。</p>
+
+<h3>3.2 共享Actor-Critic</h3>
+
+<pre>18维标准化状态
+    ↓
+Linear(18,256) + Tanh
+    ↓
+Linear(256,256) + Tanh
+    ├──────────────→ Linear(256,6) → 动作均值 μ(s)
+    └──────────────→ Linear(256,1) → 状态价值 V(s)
+
+另有六维全局可学习参数 log_std，前向时限制在[-5,1]</pre>
+
+<table>
+  <tr><th>模块</th><th>参数量</th></tr>
+  <tr><td>Linear 18→256</td><td>4,864</td></tr>
+  <tr><td>Linear 256→256</td><td>65,792</td></tr>
+  <tr><td>六维动作均值头</td><td>1,542</td></tr>
+  <tr><td>六维可学习log_std</td><td>6</td></tr>
+  <tr><td>标量价值头</td><td>257</td></tr>
+  <tr><th>总参数量</th><th>72,461</th></tr>
+</table>
+
+<h3>3.3 均值与方差的准确含义</h3>
+
+<p>网络按状态输出六维均值 <code>μ(s)</code>。标准差来自单独的六维参数 <code>log_std</code>，通过指数转换为正数。它初始为 <code>-0.7</code>，对应初始标准差约0.497；训练时和网络权重一起更新。</p>
+
+<div class="warning">
+  <b>“固定方差”的准确说法：</b>它对所有状态使用同一组六维数值，因此是“状态无关方差”；但它不是“训练中不更新的方差”。确定性推理只使用 <code>tanh(μ)</code>，不再随机采样。
+</div>
+
+<h2 class="page-break">4. 从原始动作到物理关节命令</h2>
+
+<h3>4.1 三个不同层次的动作</h3>
+
+<table>
+  <tr><th>层次</th><th>符号</th><th>范围</th><th>用途</th></tr>
+  <tr><td>原始高斯动作</td><td>u</td><td>无界</td><td>从正态分布采样，便于连续策略学习</td></tr>
+  <tr><td>归一化动作</td><td>a=tanh(u)</td><td>(-1,1)</td><td>网络与不同关节之间的统一有界接口</td></tr>
+  <tr><td>实际关节增量</td><td>Δq</td><td>受物理限制</td><td>映射成每个视觉周期内的关节目标变化</td></tr>
+</table>
+
+<h3>4.2 训练采样</h3>
+
+<div class="formula">u<sub>i</sub> ∼ Normal(μ<sub>i</sub>(s), σ<sub>i</sub><sup>2</sup>)</div>
+<div class="formula">a<sub>i</sub> = tanh(u<sub>i</sub>)</div>
+
+<p>六个维度采用对角高斯：给定状态后，各维原始动作条件独立，但共享同一个状态特征网络。</p>
+
+<h3>4.3 物理动作映射</h3>
+
+<p>当前一步持续时间由视觉频率决定。先计算每个关节在这个时间内按照速度上限允许移动的最大角度，再与配置的单视觉周期最大增量取更严格者：</p>
+
+<div class="formula">safe_delta<sub>i</sub> = min(config_delta<sub>i</sub>, velocity_limit<sub>i</sub> × decision_dt)</div>
+<div class="formula">q_command = clip(q_current + safe_delta × a, q_lower, q_upper)</div>
+
+<p>默认视觉周期为0.05 s。配置的单步最大增量是前三关节0.09 rad、后三关节0.14 rad；同时还要服从每个关节的速度上限，最后再裁剪到关节位置上下限。</p>
+
+<div class="key">
+  <b>归一化的目的：</b>
+  <ul>
+    <li>让策略始终输出统一的无量纲范围，降低六个关节控制尺度差异带来的训练困难；</li>
+    <li>让动作连续地接近边界，而不是使用硬裁剪直接截断高斯样本；</li>
+    <li>保证发送到后续缩放层的动作有界；</li>
+    <li>配合物理限幅防止超速、单步跳变和越过关节位置限制。</li>
+  </ul>
+  <b>因此tanh本身不是完整的安全机制。</b>
+</div>
+
+<p>执行链中不存在“先tanh、再atanh还原、再执行”。<code>atanh</code>只在PPO训练阶段使用，用于由已经保存的实际动作恢复其原始高斯坐标，从而计算正确的概率密度。</p>
+
+<h2>5. tanh后的概率密度与Jacobian修正</h2>
+
+<h3>5.1 密度不是离散概率</h3>
+
+<p>这里的“密度”就是连续概率密度。某个精确实数动作的概率为零；一个很小动作区间的概率，近似等于该处密度乘以区间宽度。密度本身可以大于1，只有对一个区域积分后才是0到1之间的概率。</p>
+
+<h3>5.2 为什么不能直接使用原始正态密度</h3>
+
+<p><code>tanh</code>会改变空间尺度。在零点附近变化较快，而在接近±1时导数接近零：很宽的原始动作区域被压缩到很窄的实际动作区域。因此原始空间中“每单位u”的密度，不能直接当作实际空间中“每单位a”的密度。</p>
+
+<div class="formula">u = atanh(a) = 0.5 × ln((1+a)/(1-a))</div>
+<div class="formula">da/du = 1 - tanh²(u) = 1-a²</div>
+<div class="formula">p<sub>A</sub>(a|s) = p<sub>U</sub>(atanh(a)|s) / (1-a²)</div>
+
+<p>除以 <code>1-a²</code>就是变量变换的Jacobian修正，也可理解为你所说的“追溯tanh造成的密度压缩”。</p>
+
+<h3>5.3 六关节联合对数密度</h3>
+
+<p>六个关节是一次联合动作。对角高斯的联合密度是六个单维密度的乘积；代码使用对数后把六项相加，避免小数连乘下溢：</p>
+
+<div class="formula">log π(a|s) = Σ<sub>i=1..6</sub> [ log Normal(atanh(a<sub>i</sub>); μ<sub>i</sub>(s),σ<sub>i</sub>²) - log(1-a<sub>i</sub>²) ]</div>
+
+<p>代码从原始动作直接采用数值稳定恒等式计算 <code>log(1-tanh²(u))</code>，避免动作接近±1时出现 <code>log(0)</code>。更新阶段对已保存动作先裁剪到略小于±1，再执行 <code>atanh</code>。</p>
+
+<div class="notice">
+  <b>梯度到底在哪里：</b>Rollout里的实际动作是固定训练样本。新策略计算该固定动作的对数密度，梯度由对数密度流向μ、log_std和共享层。梯度不会通过MuJoCo，也不会把历史动作本身改掉。新熵样本采用重新参数化采样，熵项的梯度可以通过采样与tanh流回策略参数。
+</div>
+
+<h2 class="page-break">6. Rollout采集和同一Cage目标契约</h2>
+
+<h3>6.1 每条transition保存的内容</h3>
+
+<table>
+  <tr><th>数据</th><th>作用</th></tr>
+  <tr><td>标准化状态 s<sub>t</sub></td><td>Actor和Critic更新输入</td></tr>
+  <tr><td>实际有界动作 a<sub>t</sub></td><td>新策略重新评价同一动作</td></tr>
+  <tr><td>奖励 r<sub>t</sub></td><td>优势和价值目标</td></tr>
+  <tr><td>下一状态 s<sub>t+1</sub></td><td>下一价值估计与时序连接</td></tr>
+  <tr><td>done</td><td>终止时切断价值自举</td></tr>
+  <tr><td>旧联合对数密度</td><td>计算新旧策略密度比</td></tr>
+  <tr><td>旧价值V(s<sub>t</sub>)</td><td>GAE和价值目标</td></tr>
+  <tr><td>下一价值V(s<sub>t+1</sub>)</td><td>TD残差；终止状态为0</td></tr>
+</table>
+
+<h3>6.2 同一Cage奖励契约</h3>
+
+<p>动作 <code>a_t</code>由包含 <code>C_t</code>的状态决定，因此奖励必须评价动作执行后的机器人相对于同一个 <code>C_t</code>的误差。区间末尾新视觉帧产生的 <code>C_(t+1)</code>只属于下一状态，不能反过来评价前一个动作。</p>
+
+<p>采样代码逐步检查：</p>
+<ul>
+  <li>奖励中记录的Cage位姿必须等于 <code>raw_state[:6]</code>；</li>
+  <li>下一Cage位姿必须等于 <code>raw_next_state[:6]</code>；</li>
+  <li>契约不满足时立即抛出错误，防止继续产生错误训练数据。</li>
+</ul>
+
+<h2>7. 奖励函数</h2>
+
+<p>当前奖励由TCP位置误差、TCP姿态误差和关节代价组成，并在发生接触碰撞时额外减去碰撞惩罚：</p>
+
+<div class="formula">reward = -12 × position_error² -2 × orientation_error² -0.04 × joint_cost - collision_penalty</div>
+
+<p>其中关节代价包含：</p>
+<ul>
+  <li>关节接近限位的四次惩罚；</li>
+  <li>当前关节速度平方惩罚；</li>
+  <li>本步关节变化平方惩罚。</li>
+</ul>
+
+<p>碰撞惩罚默认是20，并默认在接触碰撞时终止当前episode。位置和姿态误差始终针对产生当前动作的同一个Cage目标。</p>
+
+<h2>8. GAE、价值目标与优势归一化</h2>
+
+<h3>8.1 时序差分残差</h3>
+
+<div class="formula">δ<sub>t</sub> = r<sub>t</sub> + γ(1-done<sub>t</sub>)V(s<sub>t+1</sub>) - V(s<sub>t</sub>)</div>
+
+<h3>8.2 GAE优势</h3>
+
+<div class="formula">A<sub>t</sub> = δ<sub>t</sub> + γλ(1-done<sub>t</sub>)A<sub>t+1</sub></div>
+
+<p>默认 <code>γ=0.99</code>、<code>λ=0.95</code>。GAE在一步TD的低方差和长回报的低偏差之间折中。Actor使用标准化后的优势，减少不同rollout奖励尺度变化对更新步长的影响。</p>
+
+<h3>8.3 Critic目标</h3>
+
+<div class="formula">R<sup>λ</sup><sub>t</sub> = A<sub>t</sub> + V<sub>old</sub>(s<sub>t</sub>)</div>
+<div class="formula">L<sub>value</sub> = 0.5 × mean((V(s<sub>t</sub>) - R<sup>λ</sup><sub>t</sub>)²)</div>
+
+<p>Critic和Actor使用同一套GAE语义，不再混用另一套高方差的完整Monte Carlo回报。</p>
+
+<h2 class="page-break">9. PPO裁剪更新与熵估计</h2>
+
+<h3>9.1 新旧策略密度比</h3>
+
+<div class="formula">ratio<sub>t</sub> = exp(log π<sub>new</sub>(a<sub>t</sub>|s<sub>t</sub>) - log π<sub>old</sub>(a<sub>t</sub>|s<sub>t</sub>))</div>
+
+<p>这是同一个六关节联合动作在新、旧策略下的密度比，而不是为六个关节分别构造六个PPO目标。</p>
+
+<h3>9.2 裁剪Actor目标</h3>
+
+<div class="formula">L<sub>actor</sub> = -mean(min(ratio×A, clip(ratio,1-ε,1+ε)×A))</div>
+
+<p>默认裁剪范围 <code>ε=0.2</code>。如果一个样本的策略变化已经超过允许范围，裁剪分支会限制它继续推动参数发生大变化，从而提高训练稳定性。</p>
+
+<h3>9.3 tanh实际策略的熵</h3>
+
+<p>未经变换的高斯熵不能准确反映实际有界动作的探索程度。例如原始高斯方差很大时，经过tanh后动作可能大量堆积在±1附近，看起来“高斯熵很大”，实际控制却接近两端饱和。</p>
+
+<p>当前实现从策略重新参数化采样新的原始动作，经过tanh变量变换后计算：</p>
+
+<div class="formula">H(π) = - E<sub>a∼π</sub>[log π(a|s)]</div>
+
+<p>使用Monte Carlo样本近似这个期望，并把变换后熵作为奖励项加入总损失。目的不是单纯增大高斯方差，而是鼓励实际可执行动作空间中的有效探索。</p>
+
+<h3>9.4 总损失和梯度</h3>
+
+<div class="formula">L = L<sub>actor</sub> + 0.5L<sub>value</sub> - 0.002H(π)</div>
+
+<p>每个minibatch执行：</p>
+<ol>
+  <li>重新计算实际动作的联合对数密度、价值和熵样本；</li>
+  <li>计算PPO裁剪损失、价值损失和熵奖励；</li>
+  <li>对模型参数反向传播；</li>
+  <li>将全局梯度范数裁剪到0.5；</li>
+  <li>使用Adam更新共享层、动作均值头、价值头和log_std。</li>
+</ol>
+
+<h2>10. 训练循环、GPU分工与检查点</h2>
+
+<h3>10.1 外层训练循环</h3>
+
+<p>默认执行500轮更新。每轮至少收集2048个完整episode组成的transition，然后进行最多10个epoch的重复更新，每个minibatch为128个样本。</p>
+
+<pre>初始化Actor-Critic、Adam和状态标准化器
+for update in 1..500:
+    收集不少于2048步的完整episode
+    计算GAE和lambda-return
+    for epoch in 1..10:
+        打乱样本
+        按128大小划分minibatch
+        计算联合密度比、裁剪损失、价值损失、变换后熵
+        检查KL，必要时提前终止本轮更新
+        反向传播、梯度裁剪、Adam更新
+    输出训练诊断指标
+保存v8检查点和状态标准化统计</pre>
+
+<h3>10.2 CPU与GPU的实际分工</h3>
+
+<table>
+  <tr><th>工作</th><th>主要设备</th><th>说明</th></tr>
+  <tr><td>MuJoCo动力学步进</td><td>CPU</td><td>不是PyTorch张量计算，通常不会自动使用CUDA</td></tr>
+  <tr><td>RGB-D渲染</td><td>OpenGL/EGL</td><td>可能使用GPU图形管线，但不是PyTorch训练CUDA利用率</td></tr>
+  <tr><td>Cage网络推理</td><td>CUDA（auto可用时）</td><td>批量很小，单次占用可能不高</td></tr>
+  <tr><td>PPO网络前向与反向</td><td>CUDA（auto可用时）</td><td>72k参数网络较小，环境采样常是瓶颈</td></tr>
+</table>
+
+<p>因此即使PPO使用GPU，整体训练仍可能由串行MuJoCo采样和视觉渲染限制，GPU利用率不会像大型监督网络训练那样持续接近满载。</p>
+
+<h3>10.3 检查点契约</h3>
+
+<p>当前保存格式版本为v8。检查点除模型参数外，还保存：</p>
+<ul>
+  <li>18维状态、6维动作和隐藏层结构；</li>
+  <li>运行均值/方差标准化统计；</li>
+  <li>tanh变换对角高斯联合密度契约；</li>
+  <li>tanh实际策略熵契约；</li>
+  <li>GAE lambda-return价值目标契约；</li>
+  <li>同一Cage目标奖励契约；</li>
+  <li>每次完成视觉更新只产生一个动作的触发契约；</li>
+  <li>Cage几何坐标契约。</li>
+</ul>
+
+<p>加载冻结PPO时会逐项核对这些字段。不符合当前训练语义的旧检查点不会被静默加载，必须重新训练。</p>
+
+<h2 class="page-break">11. 诊断指标、当前检查结论与训练指令</h2>
+
+<h3>11.1 每轮需要联合观察的指标</h3>
+
+<table>
+  <tr><th>指标</th><th>含义与判断</th></tr>
+  <tr><td>actor_loss</td><td>策略裁剪目标；不能单独用其正负判断性能</td></tr>
+  <tr><td>value_loss</td><td>Critic拟合lambda-return的误差</td></tr>
+  <tr><td>explained_variance</td><td>Critic解释回报变化的能力；长期接近或低于0需要排查</td></tr>
+  <tr><td>entropy</td><td>tanh后实际策略的微分熵，反映有效探索</td></tr>
+  <tr><td>density_ratio_mean</td><td>新旧策略平均密度比，通常应在1附近</td></tr>
+  <tr><td>approx_kl / max</td><td>新旧策略距离；过大触发提前停止</td></tr>
+  <tr><td>clip_fraction</td><td>被PPO裁剪的样本比例；长期过高说明更新过猛</td></tr>
+  <tr><td>action_saturation_fraction</td><td>|a|≥0.98的动作比例；过高表示动作长期挤在tanh边界</td></tr>
+  <tr><td>position/orientation error</td><td>任务性能的直接指标，应按轨迹和时间统计</td></tr>
+  <tr><td>collision / stale vision</td><td>安全和视觉闭环质量，不能被总回报掩盖</td></tr>
+</table>
+
+<p>默认目标KL为0.02，超过0.03时提前停止当前轮的后续epoch。该机制和PPO比率裁剪共同限制一次更新过大。</p>
+
+<h3>11.2 当前代码结构检查结论</h3>
+
+<ul>
+  <li><span class="check">通过：</span>18维状态与6维关节动作契约一致。</li>
+  <li><span class="check">通过：</span>均值头、可学习状态无关log_std和标量Critic结构合理。</li>
+  <li><span class="check">通过：</span>使用六维联合对数密度，而非错误的逐关节独立PPO比率。</li>
+  <li><span class="check">通过：</span>实际tanh策略密度包含稳定的Jacobian修正。</li>
+  <li><span class="check">通过：</span>同一Cage位姿用于状态、动作条件和该动作奖励。</li>
+  <li><span class="check">通过：</span>GAE优势、lambda-return价值目标和终止自举逻辑一致。</li>
+  <li><span class="check">通过：</span>状态标准化统计保存并在推理时冻结。</li>
+  <li><span class="check">通过：</span>关节命令同时受到tanh、单步增量、速度上限和位置限位约束。</li>
+</ul>
+
+<div class="warning">
+  <b>建议重点监控而非立即改动：</b>
+  <ol>
+    <li>如果动作饱和率长期很高，建议在rollout中额外保存原始动作u，减少由接近±1的动作反求atanh时的数值敏感性。</li>
+    <li>当前log_std不依赖状态，优点是简单稳定；如果后续证据显示不同轨迹阶段需要明显不同探索尺度，再考虑状态相关方差头。</li>
+    <li>Actor和Critic共享特征层是标准且紧凑的设计；只有观察到明显梯度干扰时才需要拆分网络。</li>
+  </ol>
+</div>
+
+<h3>11.3 当前正式训练指令</h3>
+
+<pre>cd /home/sjr/PPO_caging_capture
+
+python -m cage_system.cli train-ppo \
+  --config configs/ur5e_vision.yaml \
+  --cage-checkpoint artifacts/quasiplanar_v1/cage_point20.pt \
+  --trajectories artifacts/quasiplanar_v1/trajectories.npz \
+  --mujoco-model assets/mujoco_menagerie/universal_robots_ur5e/scene_eye_on_hand.xml \
+  --tcp-site attachment_site \
+  --output artifacts/quasiplanar_v1/ppo2.pt \
+  --device auto</pre>
+
+<h3>11.4 代码索引</h3>
+
+<table>
+  <tr><th>文件</th><th>内容</th></tr>
+  <tr><td>cage_system/learning/ppo2.py</td><td>网络、tanh联合密度、熵、GAE、PPO更新、检查点与冻结推理</td></tr>
+  <tr><td>cage_system/learning/train_ppo.py</td><td>完整episode采样、transition契约检查和外层训练循环</td></tr>
+  <tr><td>cage_system/sim/mujoco_env.py</td><td>视觉事件触发、18维状态、动作映射、MuJoCo执行和奖励</td></tr>
+  <tr><td>configs/default.yaml</td><td>PPO超参数、关节限制、视觉频率和奖励权重</td></tr>
+  <tr><td>cage_system/cli.py</td><td>train-ppo命令、冻结Cage加载和视觉MuJoCo环境连接</td></tr>
+</table>
+
+<p class="small">说明：本文档反映2026年8月24日工作区当前实现。后续若修改PPO检查点版本、状态契约、奖励或动作分布，应同步更新本文档。</p>
+
+</body>
+</html>

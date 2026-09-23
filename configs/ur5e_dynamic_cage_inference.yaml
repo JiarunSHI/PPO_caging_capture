@@ -1,0 +1,74 @@
+extends: ur5e_jailer_joint_v14_full.yaml
+
+# Dynamic evaluation is a separate contract: JAiLeR remains the trained
+# 100 Hz controller, while target observations arrive at a 10 Hz visual clock.
+system:
+  seed: 20260911
+
+timing:
+  detection_rate_hz: 10.0
+
+vision:
+  enabled: true
+  require_rendered_cage_training_inputs: false
+  observation_pose_lookahead_frames: 0
+  observation_pose_radius_candidates_m: [0.18, 0.25, 0.35, 0.45, 0.55]
+  require_full_trajectory_visibility: true
+
+kalman:
+  # The first five accepted RGB-D centers are raw bootstrap observations.
+  # They jointly initialize position/velocity/acceleration and covariance at
+  # frame five; prediction, innovation gating and correction start at frame six.
+  visual_bootstrap_measurements: 5
+  innovation_gate_warmup_measurements: 5
+  bootstrap_position_std_floor_m: 0.003
+  bootstrap_velocity_std_floor_mps: 0.03
+  bootstrap_acceleration_std_floor_mps2: 0.20
+  bootstrap_max_residual_m: 0.012
+
+trajectory:
+  sample_period_s: 0.10
+  timestamp_mode: fixed_period_v1
+  # The generated object motion now lasts five to seven simulated seconds.
+  duration_s: [5.0, 7.0]
+  speed_bounds_mps: [0.11, 0.18]
+  # Smooth within-track variation makes the Kalman speed estimate and the
+  # speed-to-Cage-radius mapping observable without abrupt acceleration jumps.
+  speed_variation_fraction_bounds: [0.10, 0.20]
+  speed_variation_cycles_bounds: [0.75, 1.25]
+  plane_origin_bounds: [[0.38, 0.55], [-0.18, 0.18], [0.30, 0.52]]
+  # Long in time, but spatially open rather than curling back into a loop.
+  path_length_bounds_m: [0.55, 0.75]
+  curvature_low_bounds_m_inv: [2.2, 2.8]
+  curvature_high_bounds_m_inv: [3.0, 3.6]
+  five_frame_curvature_range_bounds_m_inv: [0.005, 1.50]
+  maximum_curvature_m_inv: 8.5
+  minimum_five_frame_turn_deg: 4.0
+  maximum_five_frame_turn_deg: 25.0
+  minimum_five_frame_plane_ratio: 0.00015
+
+candidate:
+  radius_lowpass_alpha: 0.49
+
+dynamic_cage_inference:
+  normalized_arc_position: 0.4375
+  # Simulation setup places the TCP in front of the known initial motion trend.
+  # Online Cage reconstruction still receives only RGB-D/Kalman/spline state.
+  initial_visibility_lookahead_frames: 6
+  minimum_initial_trajectory_visibility_fraction: 1.0
+  visual_hold_warmup_frames: 5
+  # This is an observation/approach pose, not an initial Cage target.  Its
+  # forward and lateral separation leaves a visible Jacobian approach phase.
+  initial_standoff_candidates_m: [0.20, 0.22, 0.24]
+  initial_trend_offset_candidates_deg: [-15.0, 15.0, -25.0, 25.0]
+  maximum_total_turn_deg: 150.0
+  minimum_endpoint_displacement_ratio: 0.45
+  minimum_base_distance_m: 0.38
+  maximum_base_distance_m: 0.70
+  base_height_bounds_m: [0.18, 0.72]
+  ppo_switch_position_m: 0.015
+  ppo_switch_orientation_deg: 45.0
+  consecutive_miss_failure: 3
+  # Workspace filtering is deliberately strict; retries are cheap because
+  # rejected paths are screened before MuJoCo IK or rendering.
+  maximum_trajectory_attempts_per_episode: 300

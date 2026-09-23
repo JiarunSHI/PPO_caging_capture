@@ -1,0 +1,25 @@
+digraph PPOArchitecture {
+  graph [rankdir=TB, bgcolor="white", pad=0.12, nodesep=0.32, ranksep=0.38,
+         fontname="Times New Roman", fontsize=12];
+  node [shape=box, style="rounded,filled", color="#374151", penwidth=1.2,
+        fontname="Times New Roman", fontsize=10, margin="0.13,0.07"];
+  edge [color="#4b5563", penwidth=1.2, arrowsize=0.75,
+        fontname="Times New Roman", fontsize=9];
+
+  state [label="Observation s_t (18-D)\nposition error 3 + rotation vector 3\njoint position 6 + joint velocity 6", fillcolor="#dbeafe"];
+  norm [label="Running mean and variance\nobservation normalization", fillcolor="#e0f2fe"];
+  actor [label="Actor MLP\n128–128, Tanh", fillcolor="#ede9fe"];
+  mu [label="Mean μ_θ(s_t)\n+ trainable log σ", fillcolor="#f3e8ff"];
+  squash [label="Gaussian sample + tanh\nerror-dependent action gain", fillcolor="#fae8ff"];
+  action [label="Six desired joint velocities\n100-Hz execution", fillcolor="#fee2e2"];
+  critic [label="Critic MLP\n128–128, Tanh", fillcolor="#dcfce7"];
+  value [label="State value V_φ(s_t)", fillcolor="#d1fae5"];
+
+  {rank=same; state; norm}
+  {rank=same; actor; critic}
+  {rank=same; mu; value}
+  {rank=same; squash; action}
+  state -> norm;
+  norm -> actor -> mu -> squash -> action;
+  norm -> critic -> value;
+}

@@ -1,0 +1,10 @@
+extends: ur5e_vision.yaml
+
+# This seed and archive must remain independent of production_curved_cage.
+system:
+  seed: 20260831
+
+trajectory:
+  count: 500
+
+# Inherit the full PPO schedule: 2048 transitions x 500 updates.

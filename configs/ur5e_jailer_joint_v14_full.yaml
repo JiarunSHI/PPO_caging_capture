@@ -1,0 +1,505 @@
+extends: ur5e_jailer_curriculum.yaml
+
+# V14 is one from-scratch, three-phase run.  Ten small-span position stages
+# are expanded by the loader into masked and observed passes, then the same
+# Actor learns ten joint position-orientation stages with independent PPO
+# Actor/Critic optimization.
+jailer:
+  logical_slots: 50
+  checkpoint_interval_updates: 500
+  rollout_boundary_mode: single_task_per_slot_until_terminal_v1
+
+  # Keep the per-step quality term non-positive, at one tenth of the legacy
+  # scale so terminal success/failure and signed progress remain distinctive.
+  reward_step_quality_baseline: 1.0
+  reward_step_quality_cost_scale: 0.1
+  # Keep terminal events on the same scale.  Early failure still receives the
+  # discounted remaining-step compensation below, so a huge fixed -100 is no
+  # longer needed to prevent deliberate early termination.
+  success_bonus: 10.0
+  collision_penalty: 10.0
+  termination_semantics_mode: time_limit_bootstrap_failure_compensation_v1
+
+  reward_position_progress_weight: 2.0
+  reward_orientation_progress_weight: 4.0
+  reward_position_quality_mode: stage_normalized_fine_exp_coarse_inverse_quadratic_v2
+  reward_position_fine_quality_weight: 0.70
+  reward_position_progress_mode: normalized_error_reduction_v1
+  reward_position_progress_reference_m: 0.005
+  reward_component_progress_after_success_mode: no_positive_after_component_success_v2
+  reward_weight_mode: dynamic_normalized_pose_error_achieved_floor_v2
+  dynamic_reward_min_weight: 0.25
+  dynamic_reward_urgency_power: 1.0
+  joint_reward_progress_global: true
+
+  curriculum:
+    pose_only_actor_warm_start: false
+    three_phase_full_training: true
+    promotion_window_updates: 10
+    stop_when_final_stage_mastered: true
+    stages:
+      - name: position_p01_006_020mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.5
+        joint_log_std_floor: -3.2
+        action_velocity_scale: 0.35
+        rollout_steps_per_slot: 80
+        position_error_range_m: [0.006, 0.020]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 100
+        success_position_m: 0.0015
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0023
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+        entry_critic_alignment_mode: pre_update_ev_gate_v1
+        entry_critic_alignment_ev_threshold: 0.30
+        entry_critic_alignment_consecutive_rollouts: 3
+        entry_critic_alignment_max_rollouts: 50
+
+      - name: position_p02_006_032mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.5
+        joint_log_std_floor: -3.2
+        action_velocity_scale: 0.38
+        rollout_steps_per_slot: 90
+        position_error_range_m: [0.006, 0.032]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.07, 0.07, 0.07, 0.07, 0.07, 0.07]
+        minimum_updates: 110
+        success_position_m: 0.0017
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0026
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p03_006_045mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.4
+        joint_log_std_floor: -3.1
+        action_velocity_scale: 0.40
+        rollout_steps_per_slot: 100
+        position_error_range_m: [0.006, 0.045]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.09, 0.09, 0.09, 0.09, 0.09, 0.09]
+        minimum_updates: 120
+        success_position_m: 0.0019
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0029
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p04_006_060mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.4
+        joint_log_std_floor: -3.1
+        action_velocity_scale: 0.43
+        rollout_steps_per_slot: 110
+        position_error_range_m: [0.006, 0.060]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.12, 0.12, 0.12, 0.12, 0.12, 0.12]
+        minimum_updates: 130
+        success_position_m: 0.0021
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0032
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p05_006_075mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.3
+        joint_log_std_floor: -3.0
+        action_velocity_scale: 0.46
+        rollout_steps_per_slot: 120
+        position_error_range_m: [0.006, 0.075]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.16, 0.16, 0.16, 0.16, 0.16, 0.16]
+        minimum_updates: 140
+        success_position_m: 0.0024
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0036
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p06_006_090mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.3
+        joint_log_std_floor: -3.0
+        action_velocity_scale: 0.50
+        rollout_steps_per_slot: 135
+        position_error_range_m: [0.006, 0.090]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.20, 0.20, 0.20, 0.20, 0.20, 0.20]
+        minimum_updates: 150
+        success_position_m: 0.0027
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0041
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p07_006_105mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.2
+        joint_log_std_floor: -2.9
+        action_velocity_scale: 0.54
+        rollout_steps_per_slot: 150
+        position_error_range_m: [0.006, 0.105]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25]
+        minimum_updates: 160
+        success_position_m: 0.0030
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0047
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p08_006_120mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.2
+        joint_log_std_floor: -2.9
+        action_velocity_scale: 0.58
+        rollout_steps_per_slot: 165
+        position_error_range_m: [0.006, 0.120]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.31, 0.31, 0.31, 0.31, 0.31, 0.31]
+        minimum_updates: 170
+        success_position_m: 0.0033
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0054
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p09_006_135mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.1
+        joint_log_std_floor: -2.8
+        action_velocity_scale: 0.63
+        rollout_steps_per_slot: 180
+        position_error_range_m: [0.006, 0.135]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.38, 0.38, 0.38, 0.38, 0.38, 0.38]
+        minimum_updates: 180
+        success_position_m: 0.0036
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0064
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: position_p10_006_150mm
+        task: position
+        reward_orientation_quality_weight: 0.0
+        joint_log_std_entry_min: -2.1
+        joint_log_std_floor: -2.8
+        action_velocity_scale: 0.68
+        rollout_steps_per_slot: 200
+        position_error_range_m: [0.006, 0.150]
+        orientation_error_range_deg: [0.0, 180.0]
+        target_joint_offset_max_rad: [0.45, 0.45, 0.45, 0.45, 0.45, 0.45]
+        minimum_updates: 200
+        success_position_m: 0.0040
+        success_orientation_deg: 180.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 10.0
+        promotion_position_mean_m: 0.0080
+        promotion_orientation_mean_deg: 180.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j01_006_020mm_005deg
+        task: pose
+        entry_transition: new_critic_reset_adam_align
+        entry_critic_alignment_mode: pre_update_ev_gate_v1
+        entry_critic_alignment_ev_threshold: 0.30
+        entry_critic_alignment_consecutive_rollouts: 3
+        entry_critic_alignment_max_rollouts: 50
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.5
+        joint_log_std_floor: -3.2
+        action_velocity_scale: 0.35
+        rollout_steps_per_slot: 100
+        position_error_range_m: [0.006, 0.020]
+        orientation_error_range_deg: [0.5, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.0015
+        success_orientation_deg: 2.8
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0023
+        promotion_orientation_mean_deg: 3.4
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j02_006_032mm_008deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.5
+        joint_log_std_floor: -3.2
+        action_velocity_scale: 0.38
+        rollout_steps_per_slot: 115
+        position_error_range_m: [0.006, 0.032]
+        orientation_error_range_deg: [0.5, 8.0]
+        target_joint_offset_max_rad: [0.07, 0.07, 0.07, 0.07, 0.07, 0.07]
+        minimum_updates: 150
+        success_position_m: 0.0017
+        success_orientation_deg: 2.9
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0026
+        promotion_orientation_mean_deg: 3.6
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j03_006_045mm_011deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.4
+        joint_log_std_floor: -3.1
+        action_velocity_scale: 0.40
+        rollout_steps_per_slot: 130
+        position_error_range_m: [0.006, 0.045]
+        orientation_error_range_deg: [0.5, 11.0]
+        target_joint_offset_max_rad: [0.09, 0.09, 0.09, 0.09, 0.09, 0.09]
+        minimum_updates: 160
+        success_position_m: 0.0019
+        success_orientation_deg: 3.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0029
+        promotion_orientation_mean_deg: 3.8
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j04_006_060mm_015deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.4
+        joint_log_std_floor: -3.1
+        action_velocity_scale: 0.43
+        rollout_steps_per_slot: 145
+        position_error_range_m: [0.006, 0.060]
+        orientation_error_range_deg: [0.5, 15.0]
+        target_joint_offset_max_rad: [0.12, 0.12, 0.12, 0.12, 0.12, 0.12]
+        minimum_updates: 170
+        success_position_m: 0.0021
+        success_orientation_deg: 3.2
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0032
+        promotion_orientation_mean_deg: 4.1
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j05_006_075mm_019deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.3
+        joint_log_std_floor: -3.0
+        action_velocity_scale: 0.46
+        rollout_steps_per_slot: 160
+        position_error_range_m: [0.006, 0.075]
+        orientation_error_range_deg: [0.5, 19.0]
+        target_joint_offset_max_rad: [0.16, 0.16, 0.16, 0.16, 0.16, 0.16]
+        minimum_updates: 180
+        success_position_m: 0.0024
+        success_orientation_deg: 3.4
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0036
+        promotion_orientation_mean_deg: 4.4
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j06_006_090mm_024deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.3
+        joint_log_std_floor: -3.0
+        action_velocity_scale: 0.50
+        rollout_steps_per_slot: 175
+        position_error_range_m: [0.006, 0.090]
+        orientation_error_range_deg: [0.5, 24.0]
+        target_joint_offset_max_rad: [0.20, 0.20, 0.20, 0.20, 0.20, 0.20]
+        minimum_updates: 190
+        success_position_m: 0.0027
+        success_orientation_deg: 3.6
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0041
+        promotion_orientation_mean_deg: 4.8
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j07_006_105mm_029deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.2
+        joint_log_std_floor: -2.9
+        action_velocity_scale: 0.54
+        rollout_steps_per_slot: 190
+        position_error_range_m: [0.006, 0.105]
+        orientation_error_range_deg: [0.5, 29.0]
+        target_joint_offset_max_rad: [0.25, 0.25, 0.25, 0.25, 0.25, 0.25]
+        minimum_updates: 200
+        success_position_m: 0.0030
+        success_orientation_deg: 3.8
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0047
+        promotion_orientation_mean_deg: 5.2
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j08_006_120mm_035deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.2
+        joint_log_std_floor: -2.9
+        action_velocity_scale: 0.58
+        rollout_steps_per_slot: 210
+        position_error_range_m: [0.006, 0.120]
+        orientation_error_range_deg: [0.5, 35.0]
+        target_joint_offset_max_rad: [0.31, 0.31, 0.31, 0.31, 0.31, 0.31]
+        minimum_updates: 210
+        success_position_m: 0.0033
+        success_orientation_deg: 4.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0054
+        promotion_orientation_mean_deg: 5.6
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j09_006_135mm_040deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.1
+        joint_log_std_floor: -2.8
+        action_velocity_scale: 0.63
+        rollout_steps_per_slot: 230
+        position_error_range_m: [0.006, 0.135]
+        orientation_error_range_deg: [0.5, 40.0]
+        target_joint_offset_max_rad: [0.38, 0.38, 0.38, 0.38, 0.38, 0.38]
+        minimum_updates: 225
+        success_position_m: 0.0036
+        success_orientation_deg: 4.2
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0064
+        promotion_orientation_mean_deg: 6.0
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+      - name: joint_pose_j10_006_150mm_045deg
+        task: pose
+        reward_orientation_quality_weight: 0.50
+        joint_log_std_entry_min: -2.1
+        joint_log_std_floor: -2.8
+        action_velocity_scale: 0.68
+        rollout_steps_per_slot: 250
+        position_error_range_m: [0.006, 0.150]
+        orientation_error_range_deg: [0.5, 45.0]
+        target_joint_offset_max_rad: [0.45, 0.45, 0.45, 0.45, 0.45, 0.45]
+        minimum_updates: 250
+        success_position_m: 0.0040
+        success_orientation_deg: 4.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0080
+        promotion_orientation_mean_deg: 6.5
+        promotion_success_rate: 0.75
+        promotion_success_rate_strict: false
+
+  ppo:
+    action_composition_mode: joint_pose_actor_dynamic_speed_ppo_only_v2
+    initial_log_std: -2.0
+    joint_actor_learning_rate: 0.00002
+    joint_critic_learning_rate: 0.00010
+    actor_update_epochs: 8
+    critic_update_epochs: 12
+    minibatch_size: 512
+    updates: 1000000
+    joint_action_gain_error_ratio: [0.0, 0.5, 1.0, 2.0, 4.0, 6.0]
+    joint_action_gain_values: [0.10, 0.10, 0.20, 0.40, 0.70, 1.00]
+    adaptive_exploration:
+      enabled: true
+      patience_updates: 20
+      minimum_progress_improvement: 0.02
+      # Randomized 50-task rollouts can fluctuate slightly.  A deterioration
+      # of at most 1% is treated as plateau noise; larger regression never
+      # triggers an entropy pulse.
+      plateau_regression_tolerance: 0.01
+      entropy_multiplier: 1.5
+      boost_updates: 20
+      maximum_boosts_per_stage: 3
+      critic_ev_threshold: 0.30
+    entropy_schedule:
+      mode: linear_within_stage_minimum_updates_v1
+      stages:
+        position_masked_p01_006_020mm: {start: 0.0008, end: 0.0004}
+        position_masked_p02_006_032mm: {start: 0.0009, end: 0.00045}
+        position_masked_p03_006_045mm: {start: 0.0010, end: 0.0005}
+        position_masked_p04_006_060mm: {start: 0.0011, end: 0.00055}
+        position_masked_p05_006_075mm: {start: 0.0012, end: 0.0006}
+        position_masked_p06_006_090mm: {start: 0.0013, end: 0.00065}
+        position_masked_p07_006_105mm: {start: 0.0014, end: 0.0007}
+        position_masked_p08_006_120mm: {start: 0.0015, end: 0.00075}
+        position_masked_p09_006_135mm: {start: 0.0016, end: 0.0008}
+        position_masked_p10_006_150mm: {start: 0.0018, end: 0.0009}
+        position_observed_p01_006_020mm: {start: 0.0008, end: 0.0004}
+        position_observed_p02_006_032mm: {start: 0.0009, end: 0.00045}
+        position_observed_p03_006_045mm: {start: 0.0010, end: 0.0005}
+        position_observed_p04_006_060mm: {start: 0.0011, end: 0.00055}
+        position_observed_p05_006_075mm: {start: 0.0012, end: 0.0006}
+        position_observed_p06_006_090mm: {start: 0.0013, end: 0.00065}
+        position_observed_p07_006_105mm: {start: 0.0014, end: 0.0007}
+        position_observed_p08_006_120mm: {start: 0.0015, end: 0.00075}
+        position_observed_p09_006_135mm: {start: 0.0016, end: 0.0008}
+        position_observed_p10_006_150mm: {start: 0.0018, end: 0.0009}
+        joint_pose_j01_006_020mm_005deg: {start: 0.0010, end: 0.0005}
+        joint_pose_j02_006_032mm_008deg: {start: 0.0012, end: 0.0006}
+        joint_pose_j03_006_045mm_011deg: {start: 0.0014, end: 0.0007}
+        joint_pose_j04_006_060mm_015deg: {start: 0.0016, end: 0.0008}
+        joint_pose_j05_006_075mm_019deg: {start: 0.0018, end: 0.0009}
+        joint_pose_j06_006_090mm_024deg: {start: 0.0020, end: 0.0010}
+        joint_pose_j07_006_105mm_029deg: {start: 0.0022, end: 0.0011}
+        joint_pose_j08_006_120mm_035deg: {start: 0.0024, end: 0.0012}
+        joint_pose_j09_006_135mm_040deg: {start: 0.0027, end: 0.00135}
+        joint_pose_j10_006_150mm_045deg: {start: 0.0030, end: 0.0015}

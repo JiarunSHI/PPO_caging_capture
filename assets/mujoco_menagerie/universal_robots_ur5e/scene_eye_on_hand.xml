@@ -1,0 +1,32 @@
+<mujoco model="UR5e eye-on-hand Cage scene">
+  <include file="ur5e_eye_on_hand.xml"/>
+
+  <statistic center="0.15 0 0.45" extent="1.15"/>
+
+  <visual>
+    <headlight diffuse="0.65 0.65 0.65" ambient="0.18 0.18 0.18" specular="0.1 0.1 0.1"/>
+    <rgba haze="0.15 0.20 0.25 1"/>
+    <global azimuth="120" elevation="-22" offwidth="960" offheight="720"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.35 0.50 0.68" rgb2="0.03 0.04 0.06"
+      width="512" height="3072"/>
+    <texture type="2d" name="groundplane_eye" builtin="checker" mark="edge"
+      rgb1="0.32 0.34 0.38" rgb2="0.18 0.20 0.23" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <material name="groundplane_eye" texture="groundplane_eye" texuniform="true" texrepeat="6 6" reflectance="0.12"/>
+  </asset>
+
+  <worldbody>
+    <camera name="overview" mode="targetbody" target="wrist_3_link"
+      pos="1.35 -1.35 1.20" fovy="48" resolution="960 720"/>
+    <light pos="0.4 -0.4 1.6" dir="-0.2 0.2 -1" directional="true" castshadow="true"/>
+    <light pos="-0.5 0.3 1.0" dir="0.4 -0.2 -0.8" directional="true" diffuse="0.35 0.35 0.35"/>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane_eye"/>
+    <body name="target_mocap" mocap="true" pos="0.492 0.034 0.488">
+      <geom name="vision_target" type="sphere" size="0.018" rgba="0.92 0.10 0.08 1"
+        contype="0" conaffinity="0" group="1"/>
+      <site name="target_center" size="0.003" rgba="1 1 0 1"/>
+    </body>
+  </worldbody>
+</mujoco>

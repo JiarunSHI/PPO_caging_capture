@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="config" />
+  <arg name="cage_checkpoint" />
+  <arg name="ppo_checkpoint" />
+  <arg name="object_point_topic" default="/detector/object_point" />
+  <arg name="tcp_frame" default="tool0" />
+  <arg name="gui" default="true" />
+
+  <include file="$(find ur_gazebo)/launch/ur5e_bringup.launch">
+    <arg name="transmission_hw_interface" value="hardware_interface/PositionJointInterface" />
+    <arg name="controller_config_file" value="$(find cage_ppo_ros)/config/ur5e_cage_controllers.yaml" />
+    <arg name="controllers" value="joint_state_controller cage_joint_group_position_controller" />
+    <arg name="stopped_controllers" value="" />
+    <arg name="gui" value="$(arg gui)" />
+  </include>
+
+  <node pkg="cage_ppo_ros" type="cage_ppo_controller.py" name="cage_ppo_controller" output="screen">
+    <param name="config" value="$(arg config)" />
+    <param name="cage_checkpoint" value="$(arg cage_checkpoint)" />
+    <param name="ppo_checkpoint" value="$(arg ppo_checkpoint)" />
+    <param name="object_point_topic" value="$(arg object_point_topic)" />
+    <param name="tcp_frame" value="$(arg tcp_frame)" />
+    <param name="joint_state_topic" value="/joint_states" />
+    <param name="command_topic" value="/cage_joint_group_position_controller/command" />
+  </node>
+</launch>

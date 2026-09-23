@@ -1,0 +1,17 @@
+extends: ur5e_jailer_curriculum.yaml
+
+# V9 keeps the successful P6 position controller at its original physical
+# scale.  PPO owns only a stochastic pose residual whose amplitude is a
+# deterministic function of the current physical orientation error.
+jailer:
+  rollout_boundary_mode: stop_spawn_then_drain_active_tasks_v1
+  ppo:
+    action_composition_mode: frozen_position_plus_error_scaled_pose_residual_v2
+    pose_residual_initial_log_std: -1.20
+    # Continuous piecewise-linear interpolation is performed between these
+    # physical angle/gain anchors on every 100 Hz control step.  The existing
+    # per-stage action_velocity_scale is now only the residual-gain ceiling;
+    # it never scales the frozen position action.
+    pose_residual_gain_orientation_error_deg: [0.0, 5.0, 10.0, 16.0, 24.0, 35.0, 45.0]
+    pose_residual_gain_values: [0.10, 0.10, 0.15, 0.25, 0.40, 0.65, 1.00]
+    updates: 8000

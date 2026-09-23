@@ -1,0 +1,8 @@
+extends: production_curved_residual_ppo.yaml
+
+# Fixed validation curves: never use them for DAgger, Critic fitting or PPO.
+system:
+  seed: 20260912
+
+trajectory:
+  count: 100

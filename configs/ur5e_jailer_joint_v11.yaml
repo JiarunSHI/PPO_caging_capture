@@ -1,0 +1,311 @@
+extends: ur5e_jailer_curriculum.yaml
+
+# V11 starts directly from the proven full-observation P6 Actor.  One joint
+# Actor then learns position and orientation together; the frozen P6 copy is
+# used only as a state-dependent training reference, never as a second action.
+jailer:
+  reward_weight_mode: dynamic_normalized_pose_error_v1
+  dynamic_reward_min_weight: 0.15
+  dynamic_reward_urgency_power: 1.0
+  joint_reward_progress_global: true
+  rollout_boundary_mode: stop_spawn_then_drain_active_tasks_v1
+
+  curriculum:
+    pose_only_actor_warm_start: true
+    promotion_window_updates: 10
+    stop_when_final_stage_mastered: true
+    stages:
+      - name: joint_bridge_b01_006_025mm_05deg
+        task: pose
+        curriculum_phase: joint_pose_bridge
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        entry_critic_alignment_updates: 8
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.10
+        joint_log_std_entry_min: -1.8
+        joint_log_std_floor: -2.5
+        action_velocity_scale: 0.40
+        rollout_steps_per_slot: 80
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 100
+        success_position_m: 0.0050
+        success_orientation_deg: 5.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0055
+        promotion_orientation_mean_deg: 4.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_bridge_b02_006_025mm_045deg
+        task: pose
+        curriculum_phase: joint_pose_bridge
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.08
+        joint_log_std_entry_min: -2.0
+        joint_log_std_floor: -2.6
+        action_velocity_scale: 0.40
+        rollout_steps_per_slot: 90
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 125
+        success_position_m: 0.0045
+        success_orientation_deg: 4.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0050
+        promotion_orientation_mean_deg: 4.2
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_bridge_b03_006_025mm_04deg
+        task: pose
+        curriculum_phase: joint_pose_bridge
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.05
+        joint_log_std_entry_min: -2.0
+        joint_log_std_floor: -2.7
+        action_velocity_scale: 0.45
+        rollout_steps_per_slot: 100
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.0040
+        success_orientation_deg: 4.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0047
+        promotion_orientation_mean_deg: 3.8
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_bridge_b04_006_025mm_032deg
+        task: pose
+        curriculum_phase: joint_pose_bridge
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.03
+        joint_log_std_entry_min: -2.2
+        joint_log_std_floor: -2.8
+        action_velocity_scale: 0.45
+        rollout_steps_per_slot: 110
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 175
+        success_position_m: 0.0040
+        success_orientation_deg: 3.2
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0042
+        promotion_orientation_mean_deg: 3.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_bridge_b05_006_025mm_025deg
+        task: pose
+        curriculum_phase: joint_pose_bridge
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.03
+        joint_log_std_entry_min: -2.4
+        joint_log_std_floor: -3.0
+        action_velocity_scale: 0.50
+        rollout_steps_per_slot: 125
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 200
+        success_position_m: 0.0032
+        success_orientation_deg: 2.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0037
+        promotion_orientation_mean_deg: 2.9
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_bridge_b06_006_025mm_018deg
+        task: pose
+        curriculum_phase: joint_pose_bridge
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.03
+        joint_log_std_entry_min: -2.6
+        joint_log_std_floor: -3.2
+        action_velocity_scale: 0.50
+        rollout_steps_per_slot: 140
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 250
+        success_position_m: 0.0025
+        success_orientation_deg: 1.8
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0030
+        promotion_orientation_mean_deg: 2.3
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_pose_o01_006_025mm_01_05deg
+        task: pose
+        curriculum_phase: joint_pose_range
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.02
+        joint_log_std_entry_min: -2.5
+        joint_log_std_floor: -3.2
+        action_velocity_scale: 0.40
+        rollout_steps_per_slot: 80
+        position_error_range_m: [0.006, 0.025]
+        orientation_error_range_deg: [1.0, 5.0]
+        target_joint_offset_max_rad: [0.05, 0.05, 0.05, 0.05, 0.05, 0.05]
+        minimum_updates: 150
+        success_position_m: 0.0020
+        success_orientation_deg: 1.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0025
+        promotion_orientation_mean_deg: 2.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_pose_o02_006_040mm_01_10deg
+        task: pose
+        curriculum_phase: joint_pose_range
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.02
+        joint_log_std_entry_min: -2.2
+        joint_log_std_floor: -3.0
+        action_velocity_scale: 0.50
+        rollout_steps_per_slot: 90
+        position_error_range_m: [0.006, 0.040]
+        orientation_error_range_deg: [1.0, 10.0]
+        target_joint_offset_max_rad: [0.08, 0.08, 0.08, 0.08, 0.08, 0.08]
+        minimum_updates: 150
+        success_position_m: 0.0025
+        success_orientation_deg: 2.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0030
+        promotion_orientation_mean_deg: 3.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_pose_o03_006_060mm_01_16deg
+        task: pose
+        curriculum_phase: joint_pose_range
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.02
+        joint_log_std_entry_min: -2.0
+        joint_log_std_floor: -2.8
+        action_velocity_scale: 0.65
+        rollout_steps_per_slot: 110
+        position_error_range_m: [0.006, 0.060]
+        orientation_error_range_deg: [1.0, 16.0]
+        target_joint_offset_max_rad: [0.14, 0.14, 0.14, 0.14, 0.14, 0.14]
+        minimum_updates: 175
+        success_position_m: 0.0030
+        success_orientation_deg: 3.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0035
+        promotion_orientation_mean_deg: 4.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_pose_o04_006_090mm_01_24deg
+        task: pose
+        curriculum_phase: joint_pose_range
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.01
+        joint_log_std_entry_min: -1.8
+        joint_log_std_floor: -2.6
+        action_velocity_scale: 0.80
+        rollout_steps_per_slot: 130
+        position_error_range_m: [0.006, 0.090]
+        orientation_error_range_deg: [1.0, 24.0]
+        target_joint_offset_max_rad: [0.22, 0.22, 0.22, 0.22, 0.22, 0.22]
+        minimum_updates: 175
+        success_position_m: 0.0035
+        success_orientation_deg: 4.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0045
+        promotion_orientation_mean_deg: 5.5
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_pose_o05_006_120mm_01_35deg
+        task: pose
+        curriculum_phase: joint_pose_range
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.01
+        joint_log_std_entry_min: -1.6
+        joint_log_std_floor: -2.5
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 150
+        position_error_range_m: [0.006, 0.120]
+        orientation_error_range_deg: [1.0, 35.0]
+        target_joint_offset_max_rad: [0.32, 0.32, 0.32, 0.32, 0.32, 0.32]
+        minimum_updates: 200
+        success_position_m: 0.0040
+        success_orientation_deg: 5.5
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0055
+        promotion_orientation_mean_deg: 7.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+      - name: joint_pose_o06_006_150mm_01_45deg
+        task: pose
+        curriculum_phase: joint_pose_range
+        orientation_observation_mode: observed
+        entry_transition: continuous
+        reward_orientation_quality_weight: 0.50
+        position_reference_loss_weight: 0.01
+        joint_log_std_entry_min: -1.5
+        joint_log_std_floor: -2.4
+        action_velocity_scale: 1.00
+        rollout_steps_per_slot: 180
+        position_error_range_m: [0.006, 0.150]
+        orientation_error_range_deg: [1.0, 45.0]
+        target_joint_offset_max_rad: [0.45, 0.45, 0.45, 0.45, 0.45, 0.45]
+        minimum_updates: 200
+        success_position_m: 0.0045
+        success_orientation_deg: 7.0
+        success_tcp_speed_mps: 0.080
+        success_tcp_angular_speed_radps: 0.30
+        promotion_position_mean_m: 0.0065
+        promotion_orientation_mean_deg: 9.0
+        promotion_success_rate: 0.80
+        promotion_success_rate_strict: true
+
+  ppo:
+    action_composition_mode: joint_pose_actor_dynamic_speed_with_position_reference_v1
+    joint_actor_learning_rate: 0.00002
+    joint_critic_learning_rate: 0.00010
+    position_reference_gate_error_ratio: [0.75, 2.0]
+    # Disabled for the first joint-policy experiment: every PPO sample keeps
+    # its real position and orientation error.  This avoids an unverified
+    # position-only imitation bias in the shared Actor.
+    position_rehearsal_fraction: 0.0
+    position_rehearsal_loss_weight: 0.0
+    joint_action_gain_error_ratio: [0.0, 0.5, 1.0, 2.0, 4.0, 6.0]
+    joint_action_gain_values: [0.10, 0.10, 0.20, 0.40, 0.70, 1.00]
+    entropy_coefficient: 0.003
+    updates: 1000000
+    update_epochs: 10
+    minibatch_size: 1024

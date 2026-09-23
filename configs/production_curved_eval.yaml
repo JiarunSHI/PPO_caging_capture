@@ -1,0 +1,9 @@
+extends: production_curved_ppo.yaml
+
+# Held-out deterministic-inference bank.  This seed is different from both
+# production_curved_cage (20260830) and production_curved_ppo (20260831).
+system:
+  seed: 20260901
+
+trajectory:
+  count: 20

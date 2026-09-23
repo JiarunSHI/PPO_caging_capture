@@ -1,0 +1,14 @@
+extends: ur5e_vision.yaml
+
+system:
+  seed: 20260830
+
+trajectory:
+  count: 1000
+
+cage_network:
+  batch_size: 512
+  epochs: 300
+  early_stopping_patience: 40
+  lr_plateau_patience: 12
+

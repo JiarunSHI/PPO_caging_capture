@@ -1,0 +1,44 @@
+<mujoco model="six_joint_contract">
+  <compiler angle="radian"/>
+  <option timestep="0.002" gravity="0 0 0"/>
+  <default>
+    <joint limited="true" range="-6.283 6.283" damping="0.2" armature="0.01"/>
+    <geom type="capsule" size="0.018" density="500" contype="0" conaffinity="0"/>
+    <position kp="40"/>
+  </default>
+  <worldbody>
+    <body name="link_1" pos="0 0 0.25">
+      <joint name="shoulder_pan_joint" type="hinge" axis="0 0 1"/>
+      <geom fromto="0 0 0 0.12 0 0"/>
+      <body name="link_2" pos="0.12 0 0">
+        <joint name="shoulder_lift_joint" type="hinge" axis="0 1 0"/>
+        <geom fromto="0 0 0 0.12 0 0"/>
+        <body name="link_3" pos="0.12 0 0">
+          <joint name="elbow_joint" type="hinge" axis="0 1 0" range="-3.142 3.142"/>
+          <geom fromto="0 0 0 0.10 0 0"/>
+          <body name="link_4" pos="0.10 0 0">
+            <joint name="wrist_1_joint" type="hinge" axis="1 0 0"/>
+            <geom fromto="0 0 0 0.08 0 0"/>
+            <body name="link_5" pos="0.08 0 0">
+              <joint name="wrist_2_joint" type="hinge" axis="0 1 0"/>
+              <geom fromto="0 0 0 0.06 0 0"/>
+              <body name="link_6" pos="0.06 0 0">
+                <joint name="wrist_3_joint" type="hinge" axis="1 0 0"/>
+                <geom fromto="0 0 0 0.05 0 0"/>
+                <site name="attachment_site" pos="0.05 0 0" size="0.008"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+  <actuator>
+    <position name="a1" joint="shoulder_pan_joint"/>
+    <position name="a2" joint="shoulder_lift_joint"/>
+    <position name="a3" joint="elbow_joint"/>
+    <position name="a4" joint="wrist_1_joint"/>
+    <position name="a5" joint="wrist_2_joint"/>
+    <position name="a6" joint="wrist_3_joint"/>
+  </actuator>
+</mujoco>

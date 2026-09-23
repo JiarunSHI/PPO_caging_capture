@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+artifacts/
+*.egg-info/
+ros_ws/build/
+ros_ws/devel/
+.serena/
+.codex/
+.agents/
+.vscode/
+.matplotlib-doc-cache/
+--*

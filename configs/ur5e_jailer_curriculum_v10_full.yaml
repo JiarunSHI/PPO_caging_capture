@@ -1,0 +1,18 @@
+extends: ur5e_jailer_curriculum_v9.yaml
+
+# One self-contained run:
+#   A. P1--P6 with orientation input masked to zero.
+#   B. P1--P6 with the full 18-D observation.
+#   C. B1--B6 and O1--O6 with a frozen position controller and a dynamically
+#      scaled pose residual.
+jailer:
+  movement_trend_interval_updates: 100
+  movement_trend_position_bin_width_m: 0.005
+  movement_trend_orientation_bin_width_deg: 2.0
+  curriculum:
+    three_phase_full_training: true
+    p6_to_b1_critic_alignment_updates: 5
+    stop_when_final_stage_mastered: true
+  ppo:
+    # This is only a safety ceiling.  A mastered final stage stops training.
+    updates: 1000000

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cage-dynamics"
+version = "0.1.0"
+description = "Dynamic Cage label generation and UR5e PPO2 control pipeline"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "numpy>=1.17",
+  "scipy>=1.3",
+  "PyYAML>=5.3",
+]
+
+[project.optional-dependencies]
+learning = [
+  "torch>=2.4,<2.5",
+  "tqdm>=4.60",
+]
+simulation = ["mujoco>=3.2,<3.3", "gymnasium>=0.29,<1.0"]
+visualization = ["matplotlib>=3.1"]
+test = ["pytest>=7"]
+
+[project.scripts]
+cage-pipeline = "cage_system.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cage_system*"]

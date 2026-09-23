@@ -1,0 +1,19 @@
+extends: default.yaml
+
+system:
+  production_mode: true
+
+labeling:
+  feasibility_backend: mujoco
+  mujoco_model_path: assets/mujoco_menagerie/universal_robots_ur5e/scene_eye_on_hand.xml
+  mujoco_tcp_site: attachment_site
+
+vision:
+  enabled: true
+  require_rendered_cage_training_inputs: true
+
+trajectory:
+  # Keep the trajectory center far enough inside the practical UR5e volume
+  # that the complete 100--180 mm candidate circle remains worth evaluating.
+  # Curvature and local-plane variation still inherit the agreed defaults.
+  plane_origin_bounds: [[0.32, 0.58], [-0.24, 0.24], [0.32, 0.66]]

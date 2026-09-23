@@ -1,0 +1,65 @@
+extends: ur5e_vision.yaml
+
+# Independent from PPO train/evaluation seeds.  This archive is used only to
+# build EST-supervised Cage labels with the single positive-normal branch.
+system:
+  seed: 20260826
+
+# Cage supervision now follows a 10 Hz visual clock.  The network contract is
+# intentionally unchanged: five strictly previous [x,y,z,speed] rows still
+# predict the current six-dimensional Cage TCP pose.  At 10 Hz the five input
+# rows span 400 ms, and the oldest input is 500 ms before the current label.
+timing:
+  detection_rate_hz: 10.0
+
+# Cage supervision must be built from five consecutive measurement-accepted
+# frames. A missed visual detection or a Kalman innovation rejection clears
+# the network window; collection resumes only after five new accepted frames.
+history_quality:
+  maximum_missed_detections: 0
+  # These are applied to the actual five accepted Kalman/visual history rows,
+  # not merely to the clean trajectory that generated the label.
+  minimum_curvature_m_inv: 0.20
+  minimum_five_frame_turn_deg: 10.0
+  minimum_five_frame_plane_ratio: 0.0015
+
+kalman:
+  # The first five valid RGB-D centers establish position, velocity and
+  # acceleration before the innovation gate starts rejecting measurements.
+  innovation_gate_warmup_measurements: 5
+
+vision:
+  # One or two missing rendered detections pause data collection but do not
+  # move the robot. Three consecutive misses declare loss of view and enable
+  # the offline-only privileged observation-pose recovery.
+  view_loss_consecutive_misses: 3
+  # Zero means score every remaining point of this short trajectory, so the
+  # selected observation pose maximizes whole-tail visibility.
+  observation_pose_lookahead_frames: 0
+  observation_pose_radius_candidates_m: [0.18, 0.25, 0.35, 0.45, 0.55]
+  require_full_trajectory_visibility: true
+
+trajectory:
+  count: 3000
+  # Keep the generated observation clock identical to the visual/label clock;
+  # old 50 ms trajectory archives must not be reused for this dataset.
+  sample_period_s: 0.10
+  # Offline rendering advances by archive index, with an exact simulated
+  # 100 ms timestamp increment and no wall-clock waiting or timestamp jitter.
+  timestamp_mode: fixed_period_v1
+  # Make every causal five-frame history geometrically informative.  Raising
+  # speed moderately increases the observed arc length; the two explicit
+  # window gates reject any trajectory containing a locally straight segment.
+  duration_s: [2.5, 4.5]
+  speed_bounds_mps: [0.11, 0.18]
+  curvature_low_bounds_m_inv: [5.5, 6.2]
+  curvature_high_bounds_m_inv: [6.8, 7.5]
+  maximum_curvature_m_inv: 8.5
+  minimum_five_frame_turn_deg: 15.0
+  maximum_five_frame_turn_deg: 25.0
+  minimum_five_frame_plane_ratio: 0.0015
+
+candidate:
+  # 0.49 at 100 ms has the same continuous-time decay as 0.70 applied twice
+  # at the former 50 ms rate.  The physical radius-rate limit remains m/s.
+  radius_lowpass_alpha: 0.49

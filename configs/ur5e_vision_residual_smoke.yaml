@@ -1,0 +1,23 @@
+extends: production_curved_residual_ppo.yaml
+
+system:
+  seed: 90211
+
+trajectory:
+  count: 4
+
+ppo:
+  rollout_steps: 16
+  updates: 1
+  minibatch_size: 8
+
+residual_training:
+  hidden_dims: [32, 32]
+  critic_alignment_steps: 16
+  critic_alignment_epochs: 1
+  critic_alignment_batch_size: 8
+  actor_update_epochs: 1
+  critic_update_epochs: 1
+  checkpoint_interval_updates: 1
+  validation_interval_updates: 1
+  validation_episodes: 1
