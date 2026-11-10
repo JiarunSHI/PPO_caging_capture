@@ -12,6 +12,7 @@ The final system acquires Cage-selection experience offline with EST dynamics si
 4. **Tracking:** Jacobian control approaches the reference; when TCP error is below 15 mm and 45°, PPO is latched for local tracking at 100 Hz. MuJoCo integrates at 500 Hz. Short visual misses use Kalman prediction; three consecutive misses terminate the task.
 
 The final workflow uses simulator RGB-D measurements with perception errors. Generated future points are available only for offline evaluation and simulation setup; online Cage reconstruction consumes causal visual history.
+paper is accepted by ICMRA2026
 
 ## Installation
 
