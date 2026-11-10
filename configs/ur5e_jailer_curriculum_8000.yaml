@@ -1,9 +1,0 @@
-extends: ur5e_jailer_curriculum.yaml
-
-# Continue the completed 4,000-update v7 run without changing its curriculum,
-# reward, dynamics, optimizer, or normalization contracts.  The total update
-# index is extended to 8,000; this means 4,000 additional PPO updates when the
-# run is resumed from the preserved v7 update-4000 checkpoint.
-jailer:
-  ppo:
-    updates: 8000

@@ -16,7 +16,7 @@ from cage_system.learning.train_jailer import (
 )
 from cage_system.sim.jailer_env import JailerLogicalVectorEnv, load_initial_joint_pool
 from cage_system.sim.ur5e_control import UR5eControlModel
-from cage_system.system_visualization import _add_capsule
+from cage_system.rendering import _add_capsule
 
 
 def _torch_load(path):

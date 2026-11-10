@@ -1,8 +1,0 @@
-extends: ur5e_vision_residual_smoke.yaml
-
-# Independent visual/noise seed for the end-to-end residual smoke test.
-system:
-  seed: 90212
-
-trajectory:
-  count: 2

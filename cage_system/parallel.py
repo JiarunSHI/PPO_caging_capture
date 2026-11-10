@@ -81,8 +81,7 @@ def _initialize_worker(config):
         )
     else:
         raise ValueError(
-            "Checkpointed process workers support workspace or MuJoCo backends; "
-            "MoveIt requires one independently configured ROS namespace per worker"
+            "Checkpointed process workers support workspace or MuJoCo backends"
         )
     _WORKER_GENERATOR = LabelGenerator(config, backend)
 
@@ -204,10 +203,8 @@ def generate_labels_parallel(
     )
     if int(workers) < 1:
         raise ValueError("workers must be at least one")
-    if config["labeling"]["feasibility_backend"] == "moveit":
-        raise ValueError(
-            "MoveIt multiprocessing requires explicit per-worker ROS namespaces"
-        )
+    if config["labeling"]["feasibility_backend"] not in {"workspace", "mujoco"}:
+        raise ValueError("Label generation requires workspace or MuJoCo feasibility")
 
     part_directory = Path(output_path).with_suffix(
         Path(output_path).suffix + ".parts"

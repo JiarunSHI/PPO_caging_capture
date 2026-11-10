@@ -303,11 +303,12 @@ class CoreAlgorithmTests(unittest.TestCase):
             candidate.metrics["feasibility_stage"], "cartesian_prefilter"
         )
 
-    def test_ur5e_vision_config_inherits_and_forces_mujoco_feasibility(self):
-        production = load_config("configs/ur5e_vision.yaml")
+    def test_final_geometry_config_uses_mujoco_without_visual_training(self):
+        production = load_config("configs/ur5e_cage_state_arc_data.yaml")
         self.assertTrue(production["system"]["production_mode"])
         self.assertEqual(production["labeling"]["feasibility_backend"], "mujoco")
-        self.assertTrue(production["vision"]["require_rendered_cage_training_inputs"])
+        self.assertFalse(production["vision"]["require_rendered_cage_training_inputs"])
+        self.assertFalse(production["vision"]["enabled"])
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ learning = [
   "torch>=2.4,<2.5",
   "tqdm>=4.60",
 ]
-simulation = ["mujoco>=3.2,<3.3", "gymnasium>=0.29,<1.0"]
+simulation = ["mujoco>=3.2,<3.3", "opencv-python>=4.5"]
 visualization = ["matplotlib>=3.1"]
 test = ["pytest>=7"]
 

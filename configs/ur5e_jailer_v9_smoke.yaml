@@ -1,9 +1,0 @@
-extends: ur5e_jailer_smoke.yaml
-
-jailer:
-  rollout_boundary_mode: stop_spawn_then_drain_active_tasks_v1
-  ppo:
-    action_composition_mode: frozen_position_plus_error_scaled_pose_residual_v2
-    pose_residual_initial_log_std: -1.20
-    pose_residual_gain_orientation_error_deg: [0.0, 5.0, 10.0, 16.0, 24.0, 35.0, 45.0]
-    pose_residual_gain_values: [0.10, 0.10, 0.15, 0.25, 0.40, 0.65, 1.00]

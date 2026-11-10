@@ -1,8 +1,0 @@
-extends: production_curved_residual_ppo.yaml
-
-# Final reporting set: do not use it for checkpoint selection.
-system:
-  seed: 20260913
-
-trajectory:
-  count: 200

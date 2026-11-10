@@ -1212,5 +1212,7 @@ def validate_config(config: Dict[str, Any]) -> None:
             if probability < 0.0 or probability >= 1.0:
                 raise ValueError("{} must be in [0,1)".format(probability_name))
     backend = config["labeling"]["feasibility_backend"]
+    if backend not in {"workspace", "mujoco"}:
+        raise ValueError("Supported feasibility backends are workspace and mujoco")
     if config["system"].get("production_mode", False) and backend == "workspace":
-        raise ValueError("Production label generation requires a MoveIt or MuJoCo feasibility backend")
+        raise ValueError("Production label generation requires the MuJoCo feasibility backend")

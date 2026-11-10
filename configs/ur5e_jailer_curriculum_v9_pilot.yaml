@@ -1,8 +1,0 @@
-extends: ur5e_jailer_curriculum_v9.yaml
-
-# Short first run for checking that the unscaled frozen position controller
-# and the new residual gain do not create a new failure tail before committing
-# to the full 8,000-update V9 experiment.
-jailer:
-  ppo:
-    updates: 100

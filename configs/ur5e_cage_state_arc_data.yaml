@@ -1,43 +1,445 @@
-extends: ur5e_vision_cage_data.yaml
-
-# Geometry-only supervision. RGB-D rendering and the former [5,4] visual
-# history dataset are deliberately outside this contract.
+# Final configuration; historical inheritance has been flattened.
 system:
   seed: 20260911
-
-labeling:
-  dataset_contract: current_base_position_velocity_acceleration_plane_normal_signed_curvature_to_best_normalized_minor_arc_v1
-  # Six points at 10 Hz provide 0.5 s of causal history before the first
-  # local-plane label. These startup frames are audited but never supervised.
-  minimum_local_plane_history_frames: 6
-
+  base_frame: base_link
+  pose_representation: xyz_rotvec
+  coordinate_handedness: right
+  camera_3d_convention: mujoco_right_handed_camera_looks_minus_z
+  object_model: point_mass
+  length_unit: m
+  angle_unit: rad
+  production_mode: true
+timing:
+  detection_rate_hz: 10.0
+  maximum_visual_to_action_latency_s: 0.035
+  max_observation_age_s: 0.15
+  history_length: 5
+  online_prediction_horizon_s: 0.35
+history_quality:
+  maximum_interval_factor: 1.25
+  maximum_missed_detections: 0
+  maximum_curvature_m_inv: 8.5
+  maximum_five_frame_turn_deg: 25.0
+  minimum_speed_for_curvature_mps: 0.04
+  minimum_curvature_m_inv: 0.2
+  minimum_five_frame_turn_deg: 10.0
+  minimum_five_frame_plane_ratio: 0.0015
 vision:
   enabled: false
   require_rendered_cage_training_inputs: false
-
-# A narrower, thinner U-shaped gripper than the previous visualization proxy.
-# Finger faces remain perpendicular to Cage y; finger_thickness_m is their y
-# thickness. The open mouth remains a real escape boundary, never a Cap.
+  mujoco_gl: egl
+  camera_name: eye_on_hand
+  image_width: 320
+  image_height: 240
+  detector_backend: red_color
+  target_mocap_body: target_mocap
+  target_geom: vision_target
+  target_radius_m: 0.018
+  minimum_mask_pixels: 20
+  maximum_depth_m: 2.0
+  depth_foreground_band_m: 0.08
+  depth_noise_std_m: 0.002
+  depth_pixel_dropout_probability: 0.01
+  frame_dropout_probability: 0.01
+  center_offset_along_view_m: 0.018
+  render_segmentation_for_audit: true
+  coco_weights_path: ''
+  coco_class_id: -1
+  coco_confidence_threshold: 0.35
+  view_loss_consecutive_misses: 3
+  observation_pose_lookahead_frames: 0
+  observation_pose_radius_candidates_m:
+  - 0.18
+  - 0.25
+  - 0.35
+  - 0.45
+  - 0.55
+  require_full_trajectory_visibility: true
+trajectory:
+  count: 3000
+  duration_s:
+  - 2.5
+  - 4.5
+  sample_period_s: 0.1
+  plane_origin_bounds:
+  - - 0.32
+    - 0.58
+  - - -0.24
+    - 0.24
+  - - 0.32
+    - 0.66
+  speed_bounds_mps:
+  - 0.11
+  - 0.18
+  path_length_bounds_m:
+  - 0.15
+  - 0.65
+  curvature_history_frames: 5
+  curvature_low_bounds_m_inv:
+  - 5.5
+  - 6.2
+  curvature_high_bounds_m_inv:
+  - 6.8
+  - 7.5
+  curvature_profile_beta_bounds:
+  - -0.25
+  - 0.25
+  maximum_curvature_m_inv: 8.5
+  five_frame_curvature_range_bounds_m_inv:
+  - 0.03
+  - 1.5
+  maximum_five_frame_turn_deg: 25.0
+  local_plane_twist_bounds_deg:
+  - 1.0
+  - 3.5
+  local_plane_total_variation_bounds_deg:
+  - 0.6
+  - 5.0
+  local_plane_max_step_deg: 0.5
+  generation_max_attempts: 200
+  observation_noise_std_m: 0.003
+  dropout_probability: 0.02
+  outlier_probability: 0.005
+  outlier_std_m: 0.08
+  spline_control_spacing_s: 0.25
+  spline_regularization: 10.0
+  online_window_s: 0.65
+  recent_weight_gain: 3.0
+  tangent_update_alpha: 0.1
+  causal_tangent_max_step_deg: 12.0
+  timestamp_mode: fixed_period_v1
+  minimum_five_frame_turn_deg: 15.0
+  minimum_five_frame_plane_ratio: 0.0015
+kalman:
+  measurement_variance_m2: 9.0e-06
+  jerk_spectral_density: 0.35
+  initial_position_variance: 0.0001
+  initial_velocity_variance: 0.25
+  initial_acceleration_variance: 1.0
+  innovation_gate_chi2: 14.16
+  max_predict_only_gap_s: 0.25
+  innovation_gate_warmup_measurements: 5
+plane:
+  window_before_s: 0.25
+  window_after_s: 0.45
+  curvature_threshold: 0.02
+  line_ratio_threshold: 0.03
+  global_planar_curve_ratio_threshold: 0.001
+  normal_update_alpha: 0.2
+  maximum_normal_step_deg: 0.5
+  maximum_reference_deviation_deg: 5.0
+  base_reference_direction:
+  - 0.0
+  - 0.0
+  - 1.0
 gripper:
+  T_tcp_endpoint:
+    translation:
+    - 0.0
+    - 0.0
+    - 0.0
+    rotation_vector:
+    - 0.0
+    - 0.0
+    - 0.0
   internal_region_endpoint_frame:
     rear_x: 0.012
-    mouth_x: 0.050
+    mouth_x: 0.05
     inner_y_min: -0.023
     inner_y_max: 0.023
-    inner_z_min: -0.020
-    inner_z_max: 0.020
+    inner_z_min: -0.02
+    inner_z_max: 0.02
+  safety_gap_m: 0.003
   finger_thickness_m: 0.005
-
+  object_mass_kg: 0.12
+  contact_restitution: 0.15
+  contact_tangent_damping: 0.25
+candidate:
+  speed_radius_speed_bounds_mps:
+  - 0.05
+  - 0.45
+  radius_min_m: 0.1
+  radius_max_m: 0.18
+  minimum_mouth_to_object_surface_clearance_m: 0.025
+  radius_lowpass_alpha: 0.49
+  radius_max_rate_mps: 0.18
+  future_window_s: 1.0
+  future_window_max_s: 3.0
+  intersection_samples: 80
+  nominal_samples_per_arc: 9
+  duplicate_angle_tolerance_deg: 0.5
+  previous_best_dense_samples: 0
+  previous_best_dense_width_deg: 5.0
+  orientation_branches:
+  - 1
+  maximum_pose_jump_m: 0.12
+  maximum_orientation_jump_deg: 55.0
 est:
-  # Every candidate at one timestamp still receives the same three tapes.
-  # Seventy percent of force directions point into the current motion-arc
-  # sector; the remaining thirty percent retain global exploration.
+  dynamics_backend: mujoco
+  repeat_count: 3
+  gravity_base_mps2:
+  - 0.0
+  - 0.0
+  - 0.0
+  horizon_s: 0.8
+  node_count: 640
+  integration_dt_s: 0.005
+  force_limit_n:
+  - 1.5
+  - 1.5
+  - 1.0
+  torque_limit_nm:
+  - 0.08
+  - 0.08
+  - 0.08
+  action_duration_s:
+  - 0.015
+  - 0.06
+  density_position_bin_m: 0.015
+  density_velocity_bin_mps: 0.12
+  density_angular_velocity_bin_radps: 1.0
+  maximum_contact_penetration_m: 0.006
+  environment_min_m:
+  - -1.0
+  - -1.0
+  - 0.0
+  environment_max_m:
+  - 1.0
+  - 1.0
+  - 1.5
+  contact_friction:
+  - 0.7
+  - 0.01
+  - 0.001
+  minimum_retention_ratio: 0.0005
+  close_ratio_tolerance: 0.02
   disturbance_direction_sampling_mode: motion_arc_mixture_v1
-  arc_direction_probability: 0.70
+  arc_direction_probability: 0.7
   arc_direction_out_of_plane_std: 0.15
-  arc_direction_force_magnitude_fraction: [0.20, 1.00]
-  # Stop branches after they leave the task-relevant neighborhood expressed
-  # in the candidate endpoint frame instead of filling the metre-scale world.
+  arc_direction_force_magnitude_fraction:
+  - 0.2
+  - 1.0
   local_expansion_bounds_endpoint_frame:
-    min_m: [-0.020, -0.090, -0.070]
-    max_m: [0.220, 0.090, 0.070]
+    min_m:
+    - -0.02
+    - -0.09
+    - -0.07
+    max_m:
+    - 0.22
+    - 0.09
+    - 0.07
+robot:
+  joint_names:
+  - shoulder_pan_joint
+  - shoulder_lift_joint
+  - elbow_joint
+  - wrist_1_joint
+  - wrist_2_joint
+  - wrist_3_joint
+  joint_lower_rad:
+  - -6.283
+  - -6.283
+  - -3.142
+  - -6.283
+  - -6.283
+  - -6.283
+  joint_upper_rad:
+  - 6.283
+  - 6.283
+  - 3.142
+  - 6.283
+  - 6.283
+  - 6.283
+  joint_velocity_limit_radps:
+  - 3.14
+  - 3.14
+  - 3.14
+  - 6.28
+  - 6.28
+  - 6.28
+  normalized_delta_max_rad_per_vision_update:
+  - 0.09
+  - 0.09
+  - 0.09
+  - 0.14
+  - 0.14
+  - 0.14
+  workspace_min_m:
+  - -0.85
+  - -0.85
+  - 0.02
+  workspace_max_m:
+  - 0.85
+  - 0.85
+  - 1.2
+  minimum_collision_distance_m: 0.01
+  minimum_reachability_margin: 0.05
+  tracking_speed_margin: 1.25
+  maximum_tcp_tracking_speed_mps: 0.8
+  maximum_tcp_tracking_angular_speed_radps: 2.5
+  compensate_bias_forces_in_position_control: true
+  nominal_joint_state_rad:
+  - 0.0
+  - -1.571
+  - 1.571
+  - -1.571
+  - -1.571
+  - 0.0
+  ik_multi_start_count: 64
+  ik_analytic_empty_multistart_count: 16
+  ik_max_iterations: 100
+labeling:
+  feasibility_backend: mujoco
+  moveit_group_name: manipulator
+  moveit_tcp_link: tool0
+  moveit_ik_timeout_s: 0.08
+  mujoco_model_path: assets/mujoco_menagerie/universal_robots_ur5e/scene_eye_on_hand.xml
+  mujoco_tcp_site: attachment_site
+  audit_every_candidate: true
+  initial_label_transition_time_s: 2.0
+  dataset_contract: current_base_position_velocity_acceleration_plane_normal_signed_curvature_to_best_normalized_minor_arc_v1
+  minimum_local_plane_history_frames: 6
+cage_network:
+  per_frame_position_dim: 3
+  per_frame_speed_dim: 1
+  hidden_dims:
+  - 256
+  - 256
+  - 128
+  batch_size: 256
+  epochs: 100
+  learning_rate: 0.0003
+  position_loss_weight: 1.0
+  orientation_loss_weight: 0.4
+  validation_fraction: 0.15
+  early_stopping_patience: 30
+  early_stopping_min_delta: 0.0001
+  lr_plateau_patience: 10
+  lr_decay_factor: 0.5
+  minimum_learning_rate: 1.0e-05
+  validation_position_threshold_m: 0.025
+  validation_orientation_threshold_deg: 8.0
+ppo:
+  state_dim: 18
+  action_dim: 6
+  hidden_dims:
+  - 256
+  - 256
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_epsilon: 0.2
+  value_coefficient: 0.5
+  entropy_coefficient: 0.002
+  learning_rate: 0.0003
+  max_grad_norm: 0.5
+  state_normalization_clip: 10.0
+  state_normalization_epsilon: 1.0e-08
+  target_kl: 0.02
+  kl_stop_multiplier: 1.5
+  action_saturation_threshold: 0.98
+  rollout_steps: 2048
+  updates: 500
+  update_epochs: 10
+  minibatch_size: 128
+  reward_position_weight: 12.0
+  reward_orientation_weight: 2.0
+  reward_joint_weight: 0.04
+  reward_mode: legacy_squared
+  reward_position_reference_m: 0.025
+  reward_orientation_reference_deg: 8.0
+  reward_position_quality_weight: 0.6
+  reward_orientation_quality_weight: 0.4
+  reward_progress_weight: 0.5
+  reward_success_bonus: 0.25
+  reward_joint_limit_weight: 0.02
+  reward_velocity_weight: 0.01
+  reward_action_weight: 0.005
+  visual_escape_penalty: 8.0
+  collision_penalty: 20.0
+  terminate_on_contact: true
+  success_position_m: 0.025
+  success_orientation_deg: 8.0
+ppo_training:
+  privileged_reset_window_number: 3
+  first_policy_window_number: 4
+  initial_policy_valid_search_frames: 12
+  visual_escape_consecutive_misses: 3
+  recovery_match_lookahead_samples: 12
+  recovery_match_max_distance_m: 0.08
+  checkpoint_interval_updates: 50
+expert_training:
+  enabled: true
+  demonstration_steps: 12000
+  behavior_cloning_epochs: 80
+  dagger_expert_weights:
+  - 0.8
+  - 0.5
+  - 0.2
+  - 0.0
+  dagger_steps_per_round: 8000
+  dagger_supervised_epochs: 35
+  supervised_batch_size: 256
+  supervised_learning_rate: 0.0003
+  supervised_early_stopping_patience: 12
+  supervised_min_delta: 1.0e-05
+  validation_fraction: 0.1
+  joint_loss_weights:
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  - 1.0
+  ppo_initial_log_std: -1.2
+  critic_warmup_steps: 8192
+  critic_warmup_epochs: 20
+  critic_warmup_batch_size: 256
+  critic_warmup_learning_rate: 0.0003
+  random_demonstration:
+    episode_horizon_steps: 20
+    maximum_reset_attempts: 100
+    joint_offset_max_rad:
+    - 1.0
+    - 1.0
+    - 1.0
+    - 1.4
+    - 1.4
+    - 1.4
+    joint_velocity_std_radps: 0.1
+    joint_limit_margin_rad: 0.15
+    position_error_range_m:
+    - 0.005
+    - 0.045
+    orientation_error_range_deg:
+    - 1.0
+    - 15.0
+    success_position_m: 0.003
+    success_orientation_deg: 1.0
+  jacobian:
+    position_gain_s_inv: 5.0
+    orientation_gain_s_inv: 4.0
+    maximum_tcp_linear_speed_mps: 0.6
+    maximum_tcp_angular_speed_radps: 2.0
+    base_damping: 0.04
+    singularity_threshold: 0.08
+    singularity_damping_gain: 0.16
+    joint_centering_gain: 0.12
+    joint_velocity_feedback_gain: 0.2
+    joint_velocity_limit_fraction: 0.7
+residual_training:
+  enabled: false
+  hidden_dims:
+  - 256
+  - 256
+  action_scale: 0.2
+  initial_log_std: -1.8
+  actor_learning_rate: 3.0e-05
+  critic_learning_rate: 0.0003
+  actor_update_epochs: 4
+  critic_update_epochs: 10
+  critic_alignment_steps: 8192
+  critic_alignment_epochs: 20
+  critic_alignment_batch_size: 256
+  checkpoint_interval_updates: 50
+  validation_interval_updates: 50
+  validation_episodes: 20

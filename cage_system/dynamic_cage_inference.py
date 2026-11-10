@@ -29,9 +29,9 @@ from cage_system.io import save_generated_trajectories
 from cage_system.learning.jailer_policy import JailerPPO2Trainer
 from cage_system.learning.ppo2 import build_ppo_state, relative_pose_error6
 from cage_system.perception.eye_on_hand import MujocoEyeOnHandCamera
-from cage_system.perception.vision_dataset import VisionCageDatasetBuilder
+from cage_system.perception.observation_planner import InitialObservationPlanner
 from cage_system.sim.ur5e_control import UR5eControlModel
-from cage_system.system_visualization import _add_capsule
+from cage_system.rendering import _add_capsule
 from cage_system.trajectory.generator import PlanarTrajectoryGenerator
 from cage_system.trajectory.online import OnlineTrajectoryEstimator
 from cage_system.trajectory.spline import SharedCubicSpline3D
@@ -417,7 +417,7 @@ def evaluate_dynamic_cage_tracking(
     # Simulator truth is used only to place the target and reject an initial
     # setup that cannot see the five-frame warmup.  It is never passed to the
     # Kalman/spline Cage reconstruction, Jacobian controller, or PPO state.
-    observation_planner = VisionCageDatasetBuilder(config, model_path, detector_device=device)
+    observation_planner = InitialObservationPlanner(config, model_path, detector_device=device)
     generator = PlanarTrajectoryGenerator(config["trajectory"], seed=int(seed))
     target_mocap_id = _target_mocap_id(ur5e, config["vision"])
     control_dt = float(ur5e.control_dt)

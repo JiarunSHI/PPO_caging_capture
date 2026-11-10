@@ -169,82 +169,9 @@ def command_evaluate_dynamic_cage(args):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(
-        description="UR5e JAiLeR curriculum and constrained Jacobian branches"
-    )
-    subparsers = parser.add_subparsers(dest="command", required=True)
-
-    pool = subparsers.add_parser("generate-initial-pool")
-    pool.add_argument("--config", required=True)
-    pool.add_argument("--mujoco-model", required=True)
-    pool.add_argument("--tcp-site", default="attachment_site")
-    pool.add_argument("--count", type=int, default=40)
-    pool.add_argument("--seed", type=int)
-    pool.add_argument("--output", required=True)
-    pool.set_defaults(function=command_generate_initial_pool)
-
-    train = subparsers.add_parser("train")
-    train.add_argument("--config", required=True)
-    train.add_argument("--mujoco-model", required=True)
-    train.add_argument("--tcp-site", default="attachment_site")
-    train.add_argument("--initial-pose-pool")
-    continuation = train.add_mutually_exclusive_group()
-    continuation.add_argument("--resume-checkpoint")
-    continuation.add_argument("--actor-warm-start-checkpoint")
-    train.add_argument(
-        "--resume-start-stage",
-        help=(
-            "explicit curriculum stage for a full-state resume; preserves "
-            "Actor, Critic, optimizer, and normalization statistics"
-        ),
-    )
-    train.add_argument(
-        "--actor-warm-start-stage",
-        help=(
-            "start this curriculum stage after an Actor-only warm start; "
-            "invalid with full resume"
-        ),
-    )
-    train.add_argument("--output", required=True)
-    train.add_argument("--device", default="auto")
-    train.set_defaults(function=command_train)
-
-    jacobian = subparsers.add_parser("run-constrained-jacobian")
-    jacobian.add_argument("--config", required=True)
-    jacobian.add_argument("--mujoco-model", required=True)
-    jacobian.add_argument("--tcp-site", default="attachment_site")
-    jacobian.add_argument("--start-joints", nargs=6, type=float)
-    goal = jacobian.add_mutually_exclusive_group(required=True)
-    goal.add_argument("--goal-joints", nargs=6, type=float)
-    goal.add_argument(
-        "--goal-pose",
-        nargs=6,
-        type=float,
-        metavar=("X", "Y", "Z", "RX", "RY", "RZ"),
-        help="Base-frame target TCP xyz+rotation-vector",
-    )
-    jacobian.add_argument("--duration", type=float, required=True)
-    jacobian.add_argument("--position-only", action="store_true")
-    jacobian.add_argument("--output", required=True)
-    jacobian.set_defaults(function=command_run_jacobian)
-
-    dynamic = subparsers.add_parser("evaluate-dynamic-cage")
-    dynamic.add_argument("--config", required=True)
-    dynamic.add_argument("--checkpoint", required=True)
-    dynamic.add_argument("--mujoco-model", required=True)
-    dynamic.add_argument("--tcp-site", default="attachment_site")
-    dynamic.add_argument("--stage")
-    dynamic.add_argument("--episodes", type=int, default=20)
-    dynamic.add_argument("--seed", type=int, default=20260911)
-    dynamic.add_argument("--video-output")
-    dynamic.add_argument("--trajectory-output")
-    dynamic.add_argument("--video-fps", type=float, default=25.0)
-    dynamic.add_argument("--show-window", action="store_true")
-    dynamic.add_argument("--realtime-display", action="store_true")
-    dynamic.add_argument("--output", required=True)
-    dynamic.add_argument("--device", default="auto")
-    dynamic.set_defaults(function=command_evaluate_dynamic_cage)
-    return parser
+    """Use the canonical final-pipeline command parser."""
+    from cage_system.cli import build_parser as canonical_parser
+    return canonical_parser()
 
 
 def main():

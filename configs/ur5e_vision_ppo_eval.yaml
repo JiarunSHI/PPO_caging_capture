@@ -1,6 +1,0 @@
-extends: ur5e_vision.yaml
-
-# Held-out trajectories: never use this archive for Cage or PPO training.
-system:
-  seed: 20260825
-
